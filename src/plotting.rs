@@ -4,7 +4,7 @@ use crate::forces::calculate_energy;
 
 pub const YEAR: f64 = 31556952.0; // 1 year in sec
 
-pub fn plot_black_hole_trajectories(data: &Vec<[BlackHole; 2]>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_black_hole_trajectories(data: &Vec<Vec<BlackHole>>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024, 1024)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -88,7 +88,7 @@ pub fn plot_black_hole_trajectories(data: &Vec<[BlackHole; 2]>, filename: &str) 
     Ok(())
 }
 
-fn calculate_bounds(data: &Vec<[BlackHole; 2]>) -> (f64, f64) {
+fn calculate_bounds(data: &Vec<Vec<BlackHole>>) -> (f64, f64) {
     let mut x_min = f64::MAX;
     let mut x_max = f64::MIN;
     let mut y_min = f64::MAX;
@@ -114,7 +114,7 @@ fn calculate_bounds(data: &Vec<[BlackHole; 2]>) -> (f64, f64) {
     (min, max)
 }
 
-pub fn create_comprehensive_plots(name: &str, data: &Vec<[BlackHole; 2]>, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_comprehensive_plots(name: &str, data: &Vec<Vec<BlackHole>>, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Trajectory plot
     plot_black_hole_trajectories(data, &(name.to_owned() + "_trajectories.png"))?;
     
@@ -130,7 +130,7 @@ pub fn create_comprehensive_plots(name: &str, data: &Vec<[BlackHole; 2]>, delta_
     Ok(())
 }
 
-pub fn plot_separation_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_separation_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -187,7 +187,7 @@ pub fn plot_separation_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str, delta
     Ok(())
 }
 
-pub fn plot_angular_momentum_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_angular_momentum_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -244,7 +244,7 @@ pub fn plot_angular_momentum_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str,
     Ok(())
 }
 
-pub fn plot_energy_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_energy_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 

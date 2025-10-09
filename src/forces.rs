@@ -3,7 +3,7 @@ use crate::black_hole::BlackHole;
 pub const GG: f64 = 4.301e-6; // Newton constant km^2 kpc / Msun s^2
 pub const KM_PER_KPC: f64 = 30856776000000000.0; // number of km in kpc
 
-pub fn recalculate_acceleration_due_to_gravity(data: &mut [BlackHole]) {
+pub fn recalculate_acceleration_due_to_gravity(data: &mut Vec<BlackHole>) {
     for i in 0..data.len() {
         data[i].acceleration = [0.0; 3];
         for j in 0..data.len() {
@@ -27,7 +27,7 @@ fn calculate_acceleration_due_to_one_body(target: &BlackHole, source: &BlackHole
     acceleration
 }
 
-pub fn calculate_energy(data: &[BlackHole]) -> (f64, f64) {
+pub fn calculate_energy(data: &Vec<BlackHole>) -> (f64, f64) {
     // units of energy are Msun km^2 / s^2
     let mut potential: f64 = 0.0;
     let mut kinetic: f64 = 0.0;

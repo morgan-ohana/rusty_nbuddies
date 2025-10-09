@@ -1,0 +1,14 @@
+/home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/deps/serde-fa2bf1369b40a303.d: /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs
+
+/home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/deps/libserde-fa2bf1369b40a303.rlib: /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs
+
+/home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/deps/libserde-fa2bf1369b40a303.rmeta: /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs
+
+/home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/morgan/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs:
+
+# env-dep:OUT_DIR=/home/morgan/Desktop/Projects/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out

@@ -1,5 +1,8 @@
+use serde::{Serialize, Deserialize};
+
 #[derive(PartialEq)]
 #[derive(Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct BlackHole {
     pub mass: f64,
     pub position: [f64; 3],
