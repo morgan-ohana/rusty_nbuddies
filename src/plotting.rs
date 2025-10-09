@@ -308,6 +308,8 @@ pub fn plot_energy_vs_time(data: &Vec<[BlackHole; 2]>, filename: &str, delta_t: 
         .map(|i| (i as f64, total_energy[i]))
         .collect();
 
+    println!("Delta E/Year = {}", (energy_points.last().expect("Energy series empty in energy plot").1 - energy_points[0].1)/(energy_points.last().expect("Energy series empty in energy plot").0 - energy_points[0].0));
+
     for i in 0..data.len() {
         kinetic_points[i].0 *= delta_t / YEAR;
         potential_points[i].0 *= delta_t / YEAR;
