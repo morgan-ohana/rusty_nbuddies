@@ -18,15 +18,16 @@ pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_si
     if (state.step_count + 1) % batch_size != 0 {
 	    panic!("saving at irregular interval, likely unitended behavior!");
     }
+    let batch_num = (state.step_count + 1)/batch_size - 1;
     
-    let file = File::create(format!("{}/restart_{:03}.log", output_directory, (state.step_count + 1)/batch_size))?;
+    let file = File::create(format!("{}/restart_{:03}.log", output_directory, batch_num))?;
     let mut writer = BufWriter::new(file);        
 
     let encoded = bincode::serialize(state)?;
     writer.write_all(&encoded)?;
 
-    println!("Checkpoint saved: (step: {}, time: {:.2})", 
-        state.step_count, state.time);
+    println!("Checkpoint saved: (num: {}, step: {}, time: {:.2})", 
+        batch_num, state.step_count, state.time);
     Ok(())
 }
 
@@ -41,7 +42,7 @@ pub fn load_checkpoint(output_directory: &str, batch_num: &usize) -> anyhow::Res
 
     state = bincode::deserialize(&buffer)?;
         
-    println!("Checkpoint loaded: (step: {}, time: {:.2})", 
-        state.step_count, state.time);
+    println!("Checkpoint loaded: (num: {}, step: {}, time: {:.2})", 
+        batch_num, state.step_count, state.time);
     Ok(state)
 }

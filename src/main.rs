@@ -17,14 +17,14 @@ use crate::logging::*;
 
 const AU: f64 = 4.848136811e-9; // AU in kpc
 
-const BATCHES: usize = 3;
+const BATCHES: usize = 100;
 const STEPS: usize = BATCHES*BATCH_SIZE;
 const BATCH_SIZE: usize = 10000000;
 const DELTA_T: f64 = 0.001*YEAR;
 const OUTPUT_DIRECTORY: &str = "output";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run_simulation()?;
+    //run_simulation()?;
 
     plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
     //create_comprehensive_plots("test", &data, &DELTA_T)?;

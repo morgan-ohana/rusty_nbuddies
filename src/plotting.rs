@@ -61,9 +61,12 @@ pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> R
         chart.draw_series(LineSeries::new(
             bh2_trajectory,
             &BLUE,
-        ))?.label("Black Hole 2")
+        ))?
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
         
+        if i >= 3 {
+            break
+        }
         i += 1;
     }
 
@@ -85,7 +88,7 @@ pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> R
             &|c, s, st| {
                 return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
             },
-        ))?;
+        ))?.label("Black Hole 2");
     }
 
     chart.configure_series_labels()
@@ -107,6 +110,9 @@ fn calculate_bounds(output_directory: &str) -> anyhow::Result<(f64, f64)> {
     let mut y_max = f64::MIN;
 
     let mut i: usize = 0;
+    if !Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
+        panic!("No data found");
+    }
     while Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
         data = load_checkpoint(output_directory, &i)?.data;
         
@@ -120,6 +126,8 @@ fn calculate_bounds(output_directory: &str) -> anyhow::Result<(f64, f64)> {
         }    
         
         i += 1;
+        //break to check only first file
+        break
     }
 
     // Add some padding
