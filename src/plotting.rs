@@ -1,15 +1,17 @@
 use plotters::prelude::*;
+use std::path::Path;
 use crate::black_hole::BlackHole;
 use crate::forces::calculate_energy;
+use crate::logging::load_checkpoint;
 
 pub const YEAR: f64 = 31556952.0; // 1 year in sec
 
-pub fn plot_black_hole_trajectories(data: &Vec<Vec<BlackHole>>, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024, 1024)).into_drawing_area();
     root.fill(&WHITE)?;
 
     // Calculate bounds for the plot
-    let (min, max) = calculate_bounds(data);
+    let (min, max) = calculate_bounds(output_directory)?;
     
     let mut chart = ChartBuilder::on(&root)
         .caption("Black Hole Binary System Trajectories", ("sans-serif", 40))
@@ -35,27 +37,35 @@ pub fn plot_black_hole_trajectories(data: &Vec<Vec<BlackHole>>, filename: &str) 
         })
         .draw()?;
 
-    // Extract trajectories for both black holes
-    let bh1_trajectory: Vec<(f64, f64)> = data.iter()
-        .map(|frame| (frame[0].position[0], frame[0].position[1]))
-        .collect();
-    
-    let bh2_trajectory: Vec<(f64, f64)> = data.iter()
-        .map(|frame| (frame[1].position[0], frame[1].position[1]))
-        .collect();
+    let mut i: usize = 0;
+    let mut data: Vec<Vec<BlackHole>> = vec![vec![]]; 
+    while Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
+        data = load_checkpoint(output_directory, &i)?.data;
+        
+        // Extract trajectories for both black holes
+        let bh1_trajectory: Vec<(f64, f64)> = data.iter()
+            .map(|frame| (frame[0].position[0], frame[0].position[1]))
+            .collect();
+        
+        let bh2_trajectory: Vec<(f64, f64)> = data.iter()
+            .map(|frame| (frame[1].position[0], frame[1].position[1]))
+            .collect();
 
-    // Plot trajectories
-    chart.draw_series(LineSeries::new(
-        bh1_trajectory,
-        &RED,
-    ))?.label("Black Hole 1")
-       .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+        // Plot trajectories
+        chart.draw_series(LineSeries::new(
+            bh1_trajectory,
+            &RED,
+        ))?
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
 
-    chart.draw_series(LineSeries::new(
-        bh2_trajectory,
-        &BLUE,
-    ))?.label("Black Hole 2")
-       .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+        chart.draw_series(LineSeries::new(
+            bh2_trajectory,
+            &BLUE,
+        ))?.label("Black Hole 2")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+        
+        i += 1;
+    }
 
     // Add final positions as markers
     if let Some(last_frame) = data.last() {
@@ -66,7 +76,7 @@ pub fn plot_black_hole_trajectories(data: &Vec<Vec<BlackHole>>, filename: &str) 
             &|c, s, st| {
                 return EmptyElement::at(c) + Circle::new((0, 0), s, st.filled());
             },
-        ))?;
+        ))?.label("Black Hole 1");
         
         chart.draw_series(PointSeries::of_element(
             vec![(last_frame[1].position[0], last_frame[1].position[1])],
@@ -88,19 +98,28 @@ pub fn plot_black_hole_trajectories(data: &Vec<Vec<BlackHole>>, filename: &str) 
     Ok(())
 }
 
-fn calculate_bounds(data: &Vec<Vec<BlackHole>>) -> (f64, f64) {
+fn calculate_bounds(output_directory: &str) -> anyhow::Result<(f64, f64)> {
+    let mut data: Vec<Vec<BlackHole>>;
+
     let mut x_min = f64::MAX;
     let mut x_max = f64::MIN;
     let mut y_min = f64::MAX;
     let mut y_max = f64::MIN;
 
-    for frame in data {
-        for bh in frame {
-            x_min = x_min.min(bh.position[0]);
-            x_max = x_max.max(bh.position[0]);
-            y_min = y_min.min(bh.position[1]);
-            y_max = y_max.max(bh.position[1]);
-        }
+    let mut i: usize = 0;
+    while Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
+        data = load_checkpoint(output_directory, &i)?.data;
+        
+        for frame in data {
+            for bh in frame {
+                x_min = x_min.min(bh.position[0]);
+                x_max = x_max.max(bh.position[0]);
+                y_min = y_min.min(bh.position[1]);
+                y_max = y_max.max(bh.position[1]);
+            }
+        }    
+        
+        i += 1;
     }
 
     // Add some padding
@@ -111,12 +130,12 @@ fn calculate_bounds(data: &Vec<Vec<BlackHole>>) -> (f64, f64) {
     let min = (x_min - x_padding).min(y_min - y_padding);
     let max = (x_max + x_padding).max(y_max + y_padding);
     
-    (min, max)
+    Ok((min, max))
 }
 
-pub fn create_comprehensive_plots(name: &str, data: &Vec<Vec<BlackHole>>, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_comprehensive_plots(name: &str, output_directory: &str, data: &Vec<Vec<BlackHole>>, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Trajectory plot
-    plot_black_hole_trajectories(data, &(name.to_owned() + "_trajectories.png"))?;
+    plot_black_hole_trajectories(output_directory, &(name.to_owned() + "_trajectories.png"))?;
     
     // 2. Distance between black holes over time
     plot_separation_vs_time(data, &(name.to_owned() + "_separation_vs_time.png"), delta_t)?;
