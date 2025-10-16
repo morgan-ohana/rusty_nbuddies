@@ -591,6 +591,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "flate2",
+ "num-traits",
  "plotters",
  "serde",
  "serde_json",

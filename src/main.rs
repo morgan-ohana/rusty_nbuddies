@@ -4,6 +4,7 @@ mod time_evol;
 mod init_conds;
 mod plotting;
 mod logging;
+mod eddington_inverter;
 
 use std::fs;
 use std::path::Path;

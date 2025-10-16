@@ -19,7 +19,7 @@ cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64-unknown-linux-gnu
 cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR_x86_64_unknown_linux_gnu
 cargo:rerun-if-env-changed=HOST_PKG_CONFIG_SYSROOT_DIR
 cargo:rerun-if-env-changed=PKG_CONFIG_SYSROOT_DIR
-OUT_DIR = Some(/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/freetype-sys-a599088811433f66/out)
+OUT_DIR = Some(/mnt/c/Users/morga/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/freetype-sys-a599088811433f66/out)
 OPT_LEVEL = Some(0)
 TARGET = Some(x86_64-unknown-linux-gnu)
 CARGO_ENCODED_RUSTFLAGS = Some()
@@ -31,15 +31,17 @@ CXX_x86_64_unknown_linux_gnu = None
 cargo:rerun-if-env-changed=HOST_CXX
 HOST_CXX = None
 cargo:rerun-if-env-changed=CXX
-CXX = None
-cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
+CXX = Some(/home/morgan/miniconda3/bin/x86_64-conda-linux-gnu-c++)
 RUSTC_WRAPPER = None
+cargo:rerun-if-env-changed=CC_ENABLE_DEBUG_OUTPUT
 cargo:rerun-if-env-changed=CRATE_CC_NO_DEFAULTS
 CRATE_CC_NO_DEFAULTS = None
 DEBUG = Some(true)
 CARGO_CFG_TARGET_FEATURE = Some(fxsr,sse,sse2)
 cargo:rerun-if-env-changed=CXXFLAGS
-CXXFLAGS = None
+CXXFLAGS = Some(-fvisibility-inlines-hidden -std=c++17 -fmessage-length=0 -march=nocona -mtune=haswell -ftree-vectorize -fPIC -fstack-protector-strong -fno-plt -O2 -ffunction-sections -pipe -isystem /home/morgan/miniconda3/include)
+cargo:rerun-if-env-changed=CC_SHELL_ESCAPED_FLAGS
+CC_SHELL_ESCAPED_FLAGS = None
 cargo:rerun-if-env-changed=HOST_CXXFLAGS
 HOST_CXXFLAGS = None
 cargo:rerun-if-env-changed=CXXFLAGS_x86_64_unknown_linux_gnu
@@ -53,7 +55,7 @@ AR_x86_64_unknown_linux_gnu = None
 cargo:rerun-if-env-changed=HOST_AR
 HOST_AR = None
 cargo:rerun-if-env-changed=AR
-AR = None
+AR = Some(/home/morgan/miniconda3/bin/x86_64-conda-linux-gnu-ar)
 cargo:rerun-if-env-changed=ARFLAGS
 ARFLAGS = None
 cargo:rerun-if-env-changed=HOST_ARFLAGS
@@ -63,7 +65,7 @@ ARFLAGS_x86_64_unknown_linux_gnu = None
 cargo:rerun-if-env-changed=ARFLAGS_x86_64-unknown-linux-gnu
 ARFLAGS_x86_64-unknown-linux-gnu = None
 cargo:rustc-link-lib=static=freetype2
-cargo:rustc-link-search=native=/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/freetype-sys-a599088811433f66/out
+cargo:rustc-link-search=native=/mnt/c/Users/morga/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/freetype-sys-a599088811433f66/out
 cargo:rerun-if-env-changed=CXXSTDLIB_x86_64-unknown-linux-gnu
 CXXSTDLIB_x86_64-unknown-linux-gnu = None
 cargo:rerun-if-env-changed=CXXSTDLIB_x86_64_unknown_linux_gnu
