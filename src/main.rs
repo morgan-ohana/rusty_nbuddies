@@ -5,6 +5,7 @@ mod init_conds;
 mod plotting;
 mod logging;
 mod eddington_inverter;
+mod diagnostic;
 
 use std::fs;
 use std::path::Path;
@@ -15,6 +16,7 @@ use crate::forces::*;
 use crate::time_evol::*;
 use crate::plotting::*;
 use crate::logging::*;
+use crate::diagnostic::*;
 
 const AU: f64 = 4.848136811e-9; // AU in kpc
 
@@ -27,9 +29,12 @@ const OUTPUT_DIRECTORY: &str = "output";
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     //run_simulation()?;
 
-    plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
+    //plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
     //create_comprehensive_plots("test", &data, &DELTA_T)?;
     
+    check_energy_conservation(OUTPUT_DIRECTORY)?;
+    check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;
+
     Ok(())
 }
 

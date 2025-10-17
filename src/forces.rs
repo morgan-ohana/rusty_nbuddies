@@ -52,10 +52,27 @@ fn potential_of_binary_config(bh1: &BlackHole, bh2: &BlackHole) -> f64 {
     -1.0 * GG * bh1.mass * bh2.mass / magnitude(&subtract(&bh2.position, &bh1.position))
 }
 
+pub fn calculate_angular_momentum(data: &Vec<BlackHole>) -> [f64; 3] {
+    // units of energy are Msun km kpc / s
+    let mut angular_momentum: [f64; 3] = [0.0, 0.0, 0.0];
+    for i in 0..data.len() {
+        angular_momentum = add(&angular_momentum, &scalar_multiply(&data[i].mass, &cross_product(&data[i].position, &data[i].velocity)));
+    };
+    angular_momentum
+}
+
 // Vector Utilities
 
 fn dot_product(a: &[f64; 3], b: &[f64; 3]) -> f64 {
     a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+}
+
+fn cross_product(a: &[f64; 3], b: &[f64; 3]) -> [f64; 3] {
+    let mut c: [f64; 3] = [0.0, 0.0, 0.0];
+    c[0] = a[1]*b[2] - a[2]*b[1];
+    c[1] = a[2]*b[0] - a[0]*b[2];
+    c[2] = a[0]*b[1] - a[1]*b[2];
+    c
 }
 
 fn magnitude(vec: &[f64; 3]) -> f64 {
@@ -76,4 +93,12 @@ fn subtract(vec1: &[f64; 3], vec2: &[f64; 3]) -> [f64; 3] {
         sum[i] = vec1[i] - vec2[i];
     }
     sum
+}
+
+fn scalar_multiply(scalar: &f64, vec: &[f64; 3]) -> [f64; 3] {
+    let mut output = vec.clone();
+    for i in 0..3 {
+        output[i] = scalar * vec[i];
+    }
+    output
 }
