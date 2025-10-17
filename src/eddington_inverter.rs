@@ -3,6 +3,45 @@ use std::f64::consts::PI;
 use crate::forces::GG;
 
 const SPACIAL_GRID_NUM: usize = 1000;
+const ENERGY_GRID_NUM: usize = 1000;
+const LOG_OFFSET: f64 = 1e-10;
+
+fn compute_phase_space_density(rho: fn(f64) -> f64, r_cutoff: &f64, energy_cutoff: &f64, mass: &f64, cuspy: bool) {
+    let mut r_points: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
+    for i in 0..SPACIAL_GRID_NUM {
+        r_points[i] = (i as f64) * r_cutoff / (SPACIAL_GRID_NUM as f64);
+    }
+
+    let rho_points = generate_rho_points(rho, &r_points);
+    let potential_points = generate_potential_points(&rho_points, &r_points);
+    let drho_dV = generate_drho_dV(&rho_points, &potential_points, cuspy);
+
+    let mut energy_points: [f64; ENERGY_GRID_NUM] = [0.0; ENERGY_GRID_NUM];
+    for j in 0..ENERGY_GRID_NUM {
+        energy_points[j] = (j as f64) * energy_cutoff / (ENERGY_GRID_NUM as f64);
+    }
+    let mut integral: [f64; ENERGY_GRID_NUM] = [0.0; ENERGY_GRID_NUM];
+
+    //values at max r and v left at 0 (presumably those regions are unoccupied anyway)
+    for j in 0..ENERGY_GRID_NUM {
+        for k in 1..SPACIAL_GRID_NUM {
+            //Index backwards from E_max at r_max down to E at r
+            let i = SPACIAL_GRID_NUM - 1 - k;
+        
+            let delta_V = potential_points[i+1] - potential_points[i];
+            let integrand = drho_dV[i] / (potential_points[i] - energy_points[j]).sqrt();
+            
+            integral[j] += integrand * delta_V;
+        }
+    }
+
+    let mut f: [f64; ENERGY_GRID_NUM] = [0.0; ENERGY_GRID_NUM];
+
+    for j in 0..(ENERGY_GRID_NUM - 1) {
+        f[j] = (integral[j+1] - integral[j]) / (energy_points[j+1] - energy_points[j]);
+        f[j] /= 8.0_f64.sqrt() * PI * PI;
+    }
+}
 
 fn generate_rho_points(rho: fn(f64) -> f64, r_points: &[f64; SPACIAL_GRID_NUM]) -> [f64; SPACIAL_GRID_NUM] {
     let mut rho_points: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
@@ -13,34 +52,42 @@ fn generate_rho_points(rho: fn(f64) -> f64, r_points: &[f64; SPACIAL_GRID_NUM]) 
     rho_points
 }
 
-fn generate_V_points(rho_points: &[f64; SPACIAL_GRID_NUM], r_points: &[f64; SPACIAL_GRID_NUM]) -> [f64; SPACIAL_GRID_NUM] {
-    let mut M_enclosed: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
+fn generate_potential_points(rho_points: &[f64; SPACIAL_GRID_NUM], r_points: &[f64; SPACIAL_GRID_NUM]) -> [f64; SPACIAL_GRID_NUM] {
+    let mut mass_enclosed: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
     
-    M_enclosed[0] = rho_points[0] * 4.0 * PI * pow(0.5*r_points[1], 3)/3.0;
+    mass_enclosed[0] = rho_points[0] * 4.0 * PI * pow(0.5*r_points[1], 3)/3.0;
     for i in 1..(SPACIAL_GRID_NUM - 1) {
-        M_enclosed[i] = M_enclosed[i-1] + rho_points[i] * 4.0 * PI * (pow(0.5*(r_points[i+1] + r_points[i]), 3) - pow(0.5*(r_points[i] + r_points[i-1]), 3)) / 3.0;
+        mass_enclosed[i] = mass_enclosed[i-1] + rho_points[i] * 4.0 * PI * (pow(0.5*(r_points[i+1] + r_points[i]), 3) - pow(0.5*(r_points[i] + r_points[i-1]), 3)) / 3.0;
     }
     // Assumes linear spacing or r for last step, shouldn't matter since rho should basically be zero out here anyway
-    M_enclosed[SPACIAL_GRID_NUM - 1] = M_enclosed[SPACIAL_GRID_NUM - 2] + rho_points[SPACIAL_GRID_NUM - 1] * 4.0 * PI * (pow(1.5*r_points[SPACIAL_GRID_NUM - 1] - 0.5*r_points[SPACIAL_GRID_NUM - 2], 3) - pow(0.5*(r_points[SPACIAL_GRID_NUM - 1] + r_points[SPACIAL_GRID_NUM-2]), 3)) / 3.0;
+    mass_enclosed[SPACIAL_GRID_NUM - 1] = mass_enclosed[SPACIAL_GRID_NUM - 2] + rho_points[SPACIAL_GRID_NUM - 1] * 4.0 * PI * (pow(1.5*r_points[SPACIAL_GRID_NUM - 1] - 0.5*r_points[SPACIAL_GRID_NUM - 2], 3) - pow(0.5*(r_points[SPACIAL_GRID_NUM - 1] + r_points[SPACIAL_GRID_NUM-2]), 3)) / 3.0;
 
-    let mut V_points: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
+    let mut potential_points: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
 
-    V_points[SPACIAL_GRID_NUM - 1] = -1.0 * (r_points[SPACIAL_GRID_NUM - 1] - r_points[SPACIAL_GRID_NUM - 2]) * GG * M_enclosed[SPACIAL_GRID_NUM - 1] / (r_points[SPACIAL_GRID_NUM-1] * r_points[SPACIAL_GRID_NUM-1]);
+    potential_points[SPACIAL_GRID_NUM - 1] = -1.0 * (r_points[SPACIAL_GRID_NUM - 1] - r_points[SPACIAL_GRID_NUM - 2]) * GG * mass_enclosed[SPACIAL_GRID_NUM - 1] / (r_points[SPACIAL_GRID_NUM-1] * r_points[SPACIAL_GRID_NUM-1]);
     for i in 1..SPACIAL_GRID_NUM {
         let j = SPACIAL_GRID_NUM - 1 - i;
-        let delta_r = 0.5*(r_points[j+1] - r_points[j-1]);
-        let force = - 1.0 * GG * M_enclosed[j] / (r_points[j]*r_points[j]);
-        V_points[j] = V_points[j+1] + delta_r * force;
+        let delta_r = r_points[j+1] - r_points[j-1];
+        let force = - 1.0 * GG * mass_enclosed[j] / (r_points[j]*r_points[j]);
+        potential_points[j] = potential_points[j+1] + delta_r * force;
     }
 
-    V_points
+    potential_points
 }
 
-fn generate_drho_dV(rho_points: &[f64; SPACIAL_GRID_NUM], V_points: &[f64; SPACIAL_GRID_NUM]) -> [f64; SPACIAL_GRID_NUM] {
+fn generate_drho_dV(rho_points: &[f64; SPACIAL_GRID_NUM], potential_points: &[f64; SPACIAL_GRID_NUM], cuspy: bool) -> [f64; SPACIAL_GRID_NUM] {
     let mut drho_dV: [f64; SPACIAL_GRID_NUM] = [0.0; SPACIAL_GRID_NUM];
 
     for i in 0..(SPACIAL_GRID_NUM - 1) {
-        drho_dV[i] = (rho_points[i+1] - rho_points[i]) / (V_points[i+1] - V_points[i])
+        drho_dV[i] = match cuspy {
+            true => {
+                // using drho/dV = log(rho + LOG_OFFSET) dlog(rho + LOG_OFFSET)/dV with offset to avoid logs of 0 anywhere
+                (0.5*(rho_points[i+1] + rho_points[i]) + LOG_OFFSET).ln() * ((rho_points[i+1] + LOG_OFFSET).ln() - (rho_points[i] + LOG_OFFSET).ln()) / (potential_points[i+1] - potential_points[i])
+            }
+            false => {
+                (rho_points[i+1] - rho_points[i]) / (potential_points[i+1] - potential_points[i])
+            }
+        }
     }
     //final value left at 0, these large r values shouldn't matter anyway.
 
