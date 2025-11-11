@@ -27,8 +27,9 @@ const DELTA_T: f64 = 0.001*YEAR;
 const OUTPUT_DIRECTORY: &str = "output";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    abg_profile_init_conds(&1.0, &3.0, &1.0, &1.0, &1e7, &14.1, &4)?;
-    
+    //abg_profile_init_conds(&1.0, &3.0, &1.0, &1.0, &1e7, &14.1, &4)?;
+    plummer_init_conds(&1.0, &1e8, &4)?;
+
     //run_simulation()?;
 
     //plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
