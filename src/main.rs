@@ -58,7 +58,7 @@ fn run_simulation() -> Result<(), Box<dyn std::error::Error>> {
         
         data[n % BATCH_SIZE] = black_holes.clone();
 
-        recalculate_acceleration_due_to_gravity(&mut black_holes);
+        recalculate_dynamics_due_to_gravity(&mut black_holes);
 
         update_velocities(&mut black_holes, &previous_black_holes, &DELTA_T);
 

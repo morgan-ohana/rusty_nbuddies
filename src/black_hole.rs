@@ -8,4 +8,6 @@ pub struct BlackHole {
     pub position: [f64; 3],
     pub velocity: [f64; 3],
     pub acceleration: [f64;3],
+    pub jerk: [f64;3],
+    pub snap: [f64;3],
 }
