@@ -42,6 +42,7 @@ pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> R
     let mut i: usize = 0;
     let mut data: Vec<Vec<BlackHole>> = vec![vec![]]; 
     while Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
+        println!("{}", i);
         data = load_checkpoint(output_directory, &i)?.data;
         
         // Extract trajectories for both black holes
@@ -67,7 +68,7 @@ pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> R
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
         
         if i >= 3 {
-            break
+            //break
         }
         i += 1;
     }

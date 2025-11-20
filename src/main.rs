@@ -6,6 +6,7 @@ mod plotting;
 mod logging;
 mod eddington_inverter;
 mod diagnostic;
+mod vectors;
 
 use std::fs;
 use std::path::Path;
@@ -20,23 +21,23 @@ use crate::diagnostic::*;
 
 const AU: f64 = 4.848136811e-9; // AU in kpc
 
+const ETA: f64 = 0.1; //timestep accuracy parameter
 const BATCHES: usize = 100;
 const STEPS: usize = BATCHES*BATCH_SIZE;
-const BATCH_SIZE: usize = 10000000;
-const DELTA_T: f64 = 0.001*YEAR;
+const BATCH_SIZE: usize = 1000000;
 const OUTPUT_DIRECTORY: &str = "output";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     //abg_profile_init_conds(&1.0, &3.0, &1.0, &1.0, &1e7, &14.1, &4)?;
-    plummer_init_conds(&1.0, &1e8, &4)?;
+    //plummer_init_conds(&1.0, &1e8, &4)?;
 
     //run_simulation()?;
 
-    //plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
+    plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
     //create_comprehensive_plots("test", &data, &DELTA_T)?;
     
-    //check_energy_conservation(OUTPUT_DIRECTORY)?;
-    //check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;
+    check_energy_conservation(OUTPUT_DIRECTORY)?;
+    check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;
 
     Ok(())
 }
@@ -44,31 +45,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run_simulation() -> Result<(), Box<dyn std::error::Error>> {
     clean_output()?;
     set_up_output_directory()?;
-    println!("Timestep is {}", DELTA_T);
 
-    //let mut black_holes: [BlackHole; 2] = binary_init_conds(10.0*AU, 3.0e-9, 1.0, 2.0);
-    let mut black_holes: Vec<BlackHole> = binary_circular_init_conds(1000.0*AU, 10000.0, 10000.0);
-    let mut previous_black_holes: Vec<BlackHole> = black_holes.clone();
+    //let mut black_holes: [BlackHole; 2] = binary_init_conds(10.0*AU, 3.0e-9, 1.0, 2.0);\
+    //let mut black_holes: Vec<BlackHole> = binary_circular_init_conds(1.0, 1e7, 1e7);
+    let mut black_holes: Vec<BlackHole> = binary_circular_init_conds(10.0, 1e8, 1e8);
 
     let mut data: Vec<Vec<BlackHole>> = vec![black_holes.clone(); BATCH_SIZE];
 
     print_all_info(&black_holes);
 
+    //initial dynamics calculation
+    recalculate_dynamics_due_to_gravity(&mut black_holes);
+    recalculate_dynamics_due_to_gravity(&mut black_holes);
+
+    let mut running_time: f64 = 0.0;
+    let mut timestep = f64::MAX;
+
     for n in 0..STEPS {
         
         data[n % BATCH_SIZE] = black_holes.clone();
+        
+        timestep = f64::MAX;
+        for m in 0..black_holes.len() {
+            timestep = timestep.min(compute_timestep(&black_holes[m], &ETA))
+        }
+        running_time += timestep;
 
+        //initial kick v_i -> v_{i+0.5}
+        update_velocities(&mut black_holes, &(0.5 * timestep));
+
+        //drift x_i -> x_{i+1}
+        update_positions(&mut black_holes, &timestep);
+
+        //update dynamics a_{i+1} = A(x_{i+1})
         recalculate_dynamics_due_to_gravity(&mut black_holes);
 
-        update_velocities(&mut black_holes, &previous_black_holes, &DELTA_T);
-
-        update_positions(&mut black_holes, &previous_black_holes, &DELTA_T);
-        
-        previous_black_holes = black_holes.clone();
+        //final kick v_{i+0.5} -> v_{i+1}
+        update_velocities(&mut black_holes, &(0.5 * timestep));
 
         if n % BATCH_SIZE == BATCH_SIZE - 1 {
             let sim = SimulationState {
-                time: n as f64 * DELTA_T,
+                time: running_time,
                 data: data.clone(),
                 step_count: n
             };

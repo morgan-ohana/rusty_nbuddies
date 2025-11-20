@@ -169,7 +169,7 @@ pub fn binary_circular_init_conds(seperation: f64, m1: f64, m2: f64) -> Vec<Blac
     let offset = m2 * seperation / (m1+ m2);
     // G (m1m2/mu) / sep^2 = G (m1 + m2) / sep ^2= a = omega^2 sep => omega^2 = G mu / sep^3 => v_i = r_i omega = r_i sqrt(G (m1+ m2) / sep^3); [r_i G (m1+m2) / sep^3]) = kpc (km^2 kpc Msun / (Msun s^2 kpc^3))^1/2 = km/s
     // [omega] = [sqrt(G (m1+ m2) / sep^3)] = [km^2 kpc Msun / Msun s^2 kpc^3]^1/2 = km / s kpc
-    let omega = f64::sqrt(GG*(m1+m2)/(seperation*seperation*seperation))*1.3; //1.1 fudge factor to make it a tad elliptical
+    let omega = (GG*(m1+m2)/(seperation*seperation*seperation)).sqrt();//.3; //1.1 fudge factor to make it a tad elliptical
     println!("ensure timestep less than 2/omega = {}", (2.0*KM_IN_KPC/omega));
 
     let bh_1 = BlackHole {
