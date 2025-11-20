@@ -21,8 +21,8 @@ use crate::diagnostic::*;
 
 const AU: f64 = 4.848136811e-9; // AU in kpc
 
-const ETA: f64 = 0.1; //timestep accuracy parameter
-const BATCHES: usize = 100;
+const ETA: f64 = 0.01; //timestep accuracy parameter
+const BATCHES: usize = 1;//00;
 const STEPS: usize = BATCHES*BATCH_SIZE;
 const BATCH_SIZE: usize = 1000000;
 const OUTPUT_DIRECTORY: &str = "output";
@@ -31,10 +31,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //abg_profile_init_conds(&1.0, &3.0, &1.0, &1.0, &1e7, &14.1, &4)?;
     //plummer_init_conds(&1.0, &1e8, &4)?;
 
-    //run_simulation()?;
+    run_simulation()?;
 
     plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
-    //create_comprehensive_plots("test", &data, &DELTA_T)?;
+    create_comprehensive_plots("test", OUTPUT_DIRECTORY)?;
     
     check_energy_conservation(OUTPUT_DIRECTORY)?;
     check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;

@@ -144,23 +144,26 @@ fn calculate_bounds(output_directory: &str) -> anyhow::Result<(f64, f64)> {
     Ok((min, max))
 }
 
-pub fn create_comprehensive_plots(name: &str, output_directory: &str, data: &Vec<Vec<BlackHole>>, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn create_comprehensive_plots(name: &str, output_directory: &str) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Trajectory plot
-    plot_black_hole_trajectories(output_directory, &(name.to_owned() + "_trajectories.png"))?;
+    //plot_black_hole_trajectories(output_directory, &(name.to_owned() + "_trajectories.png"))?;
     
     // 2. Distance between black holes over time
-    plot_separation_vs_time(data, &(name.to_owned() + "_separation_vs_time.png"), delta_t)?;
+    plot_separation_vs_time(output_directory, &(name.to_owned() + "_separation_vs_time.png"))?;
 
     // 3. Angular Momentum conservation check
-    plot_angular_momentum_vs_time(data, &(name.to_owned() + "_angular_momentum_vs_time.png"), delta_t)?;
+    plot_angular_momentum_vs_time(output_directory, &(name.to_owned() + "_angular_momentum_vs_time.png"))?;
     
     // 4. Energy conservation check
-    plot_energy_vs_time(data, &(name.to_owned() + "_energy_vs_time.png"), delta_t)?;
+    plot_energy_vs_time(output_directory, &(name.to_owned() + "_energy_vs_time.png"))?;
     
     Ok(())
 }
 
-pub fn plot_separation_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_separation_vs_time(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let state = load_checkpoint(output_directory, &0)?;
+    let data = state.data;
+    
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -172,7 +175,7 @@ pub fn plot_separation_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta
         })
         .collect();
     
-    let max_time = (data.len() as f64)*delta_t / YEAR;
+    let max_time = (data.len() as f64) * state.time / YEAR;
     let max_sep = separations.iter().cloned().fold(f64::MIN, f64::max);
     let min_sep = separations.iter().cloned().fold(f64::MAX, f64::min);
 
@@ -207,7 +210,7 @@ pub fn plot_separation_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta
         .collect();
 
     for i in 0..data.len() {
-        time_points[i].0 *= delta_t / YEAR;
+        time_points[i].0 *= state.time / YEAR;
     }
 
     chart.draw_series(LineSeries::new(time_points, &BLUE))?;
@@ -217,7 +220,10 @@ pub fn plot_separation_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta
     Ok(())
 }
 
-pub fn plot_angular_momentum_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_angular_momentum_vs_time(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let state = load_checkpoint(output_directory, &0)?;
+    let data = state.data;
+    
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -229,7 +235,7 @@ pub fn plot_angular_momentum_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str,
         })
         .collect();
     
-    let max_time = (data.len() as f64) * delta_t / YEAR;
+    let max_time = (data.len() as f64) * state.time / YEAR;
     let max_ang_mom = angular_momentum.iter().cloned().fold(f64::MIN, f64::max);
     let min_ang_mom = angular_momentum.iter().cloned().fold(f64::MAX, f64::min);
 
@@ -264,7 +270,7 @@ pub fn plot_angular_momentum_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str,
         .collect();
 
     for i in 0..data.len() {
-        time_points[i].0 *= delta_t / YEAR;
+        time_points[i].0 *= state.time / YEAR;
     }
 
     chart.draw_series(LineSeries::new(time_points, &BLUE))?;
@@ -274,7 +280,10 @@ pub fn plot_angular_momentum_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str,
     Ok(())
 }
 
-pub fn plot_energy_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: &f64) -> Result<(), Box<dyn std::error::Error>> {
+pub fn plot_energy_vs_time(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let state = load_checkpoint(output_directory, &0)?;
+    let data = state.data;
+    
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -296,7 +305,7 @@ pub fn plot_energy_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: 
         })
         .collect();
     
-    let max_time = (data.len() as f64) * delta_t / YEAR;
+    let max_time = (data.len() as f64) * state.time / YEAR;
     let ymax = kinetic.iter().cloned().fold(f64::MIN, f64::max);
     let ymin = potential.iter().cloned().fold(f64::MAX, f64::min);
 
@@ -341,9 +350,9 @@ pub fn plot_energy_vs_time(data: &Vec<Vec<BlackHole>>, filename: &str, delta_t: 
     println!("Delta E/Year = {}", (energy_points.last().expect("Energy series empty in energy plot").1 - energy_points[0].1)/(energy_points.last().expect("Energy series empty in energy plot").0 - energy_points[0].0));
 
     for i in 0..data.len() {
-        kinetic_points[i].0 *= delta_t / YEAR;
-        potential_points[i].0 *= delta_t / YEAR;
-        energy_points[i].0 *= delta_t/ YEAR;
+        kinetic_points[i].0 *= state.time / YEAR;
+        potential_points[i].0 *= state.time / YEAR;
+        energy_points[i].0 *= state.time / YEAR;
     }
 
     chart.draw_series(LineSeries::new(kinetic_points, &BLUE))?.label("Kinetic").legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
