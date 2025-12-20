@@ -8,7 +8,7 @@ use crate::forces::KM_IN_KPC;
 use crate::eddington_inverter::*;
 use crate::plotting::plot_check_function;
 
-pub const SPACIAL_GRID_NUM: usize = 100000;
+pub const SPACIAL_GRID_NUM: usize = 10000;
 pub const VELOCITY_GRID_NUM: usize = 10000;
 
 pub fn abg_profile_init_conds(alpha: &f64, beta: &f64, gamma: &f64, r_s: &f64, rho_s: &f64, r_cutoff: &f64, particle_num: &usize) -> Result<(), Box<dyn std::error::Error>> {

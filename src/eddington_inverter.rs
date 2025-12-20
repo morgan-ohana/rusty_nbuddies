@@ -11,11 +11,13 @@ const ENERGY_GRID_NUM: usize = 10000;
 const OFFSET: f64 = 1e-10; //for when something really just shouldn't be zero
 
 pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool) -> Result<Vec<Vec<f64>>, Box<dyn std::error::Error>> {
-    plot_check_function(&potential_points, &|v: f64| -> anyhow::Result<f64> {Ok(-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4)))}, &rho_points, &"rho_vs_V_test.png", &"drho/dV", &"V", &"rho")?;
+    plot_check_function(&potential_points, &|v: f64| -> anyhow::Result<f64> {Ok(-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4)))}, &rho_points, &"rho_vs_V_test.png", &"rho vs V", &"V", &"rho")?;
 
     let d2rho_dpotential2 = differentiate(&differentiate(&rho_points, &potential_points, cuspy, true), &potential_points, cuspy, false);
     
-    let energy_min: f64 = potential_points[0]*1.001; // .1% buffer to prevent any points having exactly the minimum energy;
+    plot_function(&potential_points[1 .. potential_points.len()-1].to_vec(), &d2rho_dpotential2, &"d2rho_dV2_test.png", &"d^2rho/dV^2 vs V", &"d^2rho/dV^2", &"V")?;
+
+    let energy_min: f64 = potential_points[1]; // .1% buffer to prevent any points having exactly the minimum energy;
     let energy_max: f64 = match cuspy {
         true => energy_min*1e-3,
         false => 0.0
@@ -36,30 +38,47 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
 
     let mut f_of_energy: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
 
-    //values at max r and v left at 0 (presumably those regions are unoccupied anyway)
     let mut integral_range_exhausted = false;
     for j in 0..ENERGY_GRID_NUM {
-        for k in 2..(d2rho_dpotential2.len()) {
-            //Index backwards from E_max at r_max down to E at r, start at len - 2 since int is computed by trapezoids between i and i+1
-            let i = d2rho_dpotential2.len() - k;
-            //Note d2r_d2V is one point shorter on both ends so V[i+1] is at the same place as d2rdV2[i]
-            let l = i + 1;
+        // Integral is 0 if no range
+        if energy_points[j] >= potential_points[potential_points.len() - 1] {
+            continue
+        }
 
-            //enforce integral lower bound
-            if potential_points[i+1] <= energy_points[j] {
-                if k == 1 && !integral_range_exhausted {
-                    println!("integral range exhausted at {}", j);
-                    integral_range_exhausted = true;
+        // Find starting index
+        let start_idx = {
+            let mut high = potential_points.len() - 1;
+            let mut low = 0;
+            while high - low > 1 {
+                let mid = (high + low) / 2;
+                match potential_points[mid] > energy_points[j] {
+                    true => high = mid,
+                    false => low = mid
                 }
-                break
             }
+            high
+        };
 
-            let delta_potential = potential_points[l+1] - potential_points[l];
-            let integrand_term_1 = d2rho_dpotential2[i] / (potential_points[l] - energy_points[j]).sqrt();
-            let integrand_term_2 = d2rho_dpotential2[i+1] / (potential_points[l+1] - energy_points[j]).sqrt();
+        // Handle gap near singularity
+        // analytic solution assuming d2rho_dpotential2 is approx const on interval
+        let t = (energy_points[j] - potential_points[start_idx - 1]) / (potential_points[start_idx] - potential_points[start_idx - 1]);
+        //Note d2r_d2V is one point shorter on both ends so V[i] is at the same place as d2rdV2[i-1]
+        let start_d2rho_dpotential2 = d2rho_dpotential2[start_idx - 2] * (1.0 - t) + d2rho_dpotential2[start_idx - 1] * t;
+        f_of_energy[j] += 2.0 * start_d2rho_dpotential2 * (potential_points[start_idx] - energy_points[j]).sqrt();
+
+        //Numerically integrate
+        for l in start_idx..(d2rho_dpotential2.len() - 1) {
+            //Note d2r_d2V is one point shorter on both ends so V[i] is at the same place as d2rdV2[i-1]
+            let i = l - 1;
+
+            // Change variables to avoid singularity at lower bound
+            // u = sqrt(V - E) => u^2 = V - E => dV = 2udu => dV/sqrt(V-E) = 2udu/u = 2du
+            let du = (potential_points[l+1] - energy_points[j]).sqrt() - (potential_points[l] - energy_points[j]).sqrt();
+            let integrand_term_1 = d2rho_dpotential2[i];
+            let integrand_term_2 = d2rho_dpotential2[i+1];
             
-            //trapezoidal sum
-            f_of_energy[j] += 0.5 * (integrand_term_1 + integrand_term_2) * delta_potential;
+            //trapezoidal sum (factor of 2 from dV = 2 du cancels with 1/2 from averaging integrands)
+            f_of_energy[j] += (integrand_term_1 + integrand_term_2) * du;
         }
         //prefactor
         f_of_energy[j] /= PI.powi(2) * 2.0 * SQRT_2;
@@ -68,7 +87,11 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
             panic!("Negative distribution function, Eddington Inversion has failed at j={}", j);
         }
     }
-        
+
+    // println!("Analytic Injection!");
+    // for i in 0..ENERGY_GRID_NUM {
+    //     f_of_energy[i] = (24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-energy_points[i]).powi(7).sqrt()
+    // }
 
     plot_check_function(&energy_points, &|e: f64| -> anyhow::Result<f64> {Ok((24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-e).powi(7).sqrt())}, &f_of_energy, &"Eddington_Inversion_Phasespace_Distribution_test.png", &"Phase Space Distribution From Eddington Inverter", &"Energy (M_sun km^2/s^2)", &"f (M_sun s^3/kpc^3 km^3)")?;
 
