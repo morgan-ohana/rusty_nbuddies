@@ -6,9 +6,9 @@ use crate::black_hole::BlackHole;
 use crate::forces::GG;
 use crate::forces::KM_IN_KPC;
 use crate::eddington_inverter::*;
-use crate::plotting::plot_func;
+use crate::plotting::plot_check_function;
 
-pub const SPACIAL_GRID_NUM: usize = 10000;
+pub const SPACIAL_GRID_NUM: usize = 100000;
 pub const VELOCITY_GRID_NUM: usize = 10000;
 
 pub fn abg_profile_init_conds(alpha: &f64, beta: &f64, gamma: &f64, r_s: &f64, rho_s: &f64, r_cutoff: &f64, particle_num: &usize) -> Result<(), Box<dyn std::error::Error>> {
@@ -39,8 +39,21 @@ pub fn abg_profile_init_conds(alpha: &f64, beta: &f64, gamma: &f64, r_s: &f64, r
 }
 
 pub fn plummer_init_conds(r_s: &f64, total_mass: &f64, particle_num: &usize) -> Result<(), Box<dyn std::error::Error>> {
-    let r_max = 3.0*r_s; //3.0*r_s;
-    let v_max = 400.0;
+    const MASS_ERROR_TOLERANCE: f64 = 0.01;
+    let p = 1.0 - MASS_ERROR_TOLERANCE;
+
+    //Analytic formula for radius which encloses p percent of the mass
+    let term_1 = - r_s.powi(2) * p.powi(2) / (p.powi(2) - 1.0);
+    let q = ((r_s.powi(12) * p.powi(8) - 2.0 * r_s.powi(12) * p.powi(6) + r_s.powi(12) * p.powi(4)).sqrt() - r_s.powi(6) * p.powi(4) - r_s.powi(6) * p.powi(2)).cbrt();
+    let term_2 =  q / ((p.powi(2) - 1.0) * 2.0_f64.cbrt());
+    let term_3 = 2.0_f64.cbrt() * r_s.powi(4) * p.powi(2) / (q * (p.powi(2) - 1.0));
+    
+    let r_max = (term_1 + term_2 + term_3).sqrt();
+
+    //v_max = escape velocity at center
+    let v_max = (2.0 * GG * total_mass / r_s).sqrt();
+
+    println!("r_max = {}, v_max = {}", r_max, v_max);
 
     let cuspy = false;
 
@@ -67,16 +80,17 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> anyhow::Result<f64>>(rho: T, r_max
         }
     }
 
-    let rho_points = generate_rho_points(rho, &r_points)?;
+    let rho_points = generate_rho_points(&rho, &r_points)?;
 
     let potential_points = generate_potential_points(&rho_points, &r_points);
     let v_max = (-2.0 * potential_points[0]).sqrt();
+
+    plot_check_function(&r_points, &|r: f64| -> anyhow::Result<f64> {Ok(- GG*1e8/((1.0 + r.powi(2)).sqrt()))}, &potential_points, &"Potential_Points_test.png", &"Potential Points Check", &"r (kpc)", &"V (M_sun km^2/s^2)")?;
 
     let mut v_points: Vec<f64> = vec![0.0; VELOCITY_GRID_NUM];
     for j in 0..VELOCITY_GRID_NUM {
         v_points[j] = (j as f64) * v_max / ((VELOCITY_GRID_NUM - 1) as f64);
     }
-    println!("v_max={}", v_points[VELOCITY_GRID_NUM - 1]);
 
     let mut p_of_r: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     let mut total_mass: f64 = 0.0;
@@ -90,6 +104,7 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> anyhow::Result<f64>>(rho: T, r_max
     // Assumes linear spacing of r for last step, shouldn't matter since rho should basically be zero out here anyway
     p_of_r[SPACIAL_GRID_NUM - 1] = rho_points[SPACIAL_GRID_NUM - 1] * 4.0 * PI * (pow(1.5*r_points[SPACIAL_GRID_NUM - 1] - 0.5*r_points[SPACIAL_GRID_NUM - 2], 3) - pow(0.5*(r_points[SPACIAL_GRID_NUM - 1] + r_points[SPACIAL_GRID_NUM-2]), 3)) / 3.0;
     total_mass += p_of_r[SPACIAL_GRID_NUM - 1];
+    println!("total mass error: {}", (total_mass)/1e8 - 1.0);
 
     //Normalizing
     for i in 0..SPACIAL_GRID_NUM {
@@ -104,28 +119,21 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> anyhow::Result<f64>>(rho: T, r_max
     let mut norm_drop: bool = false;
     for i in 0..SPACIAL_GRID_NUM {
         let v_escape = (-2.0 * potential_points[i]).sqrt();
-        //println!("v_esc = {}, v_max = {}", v_escape, v_max);
         let v_esc_arg = ((v_escape/v_max) * VELOCITY_GRID_NUM as f64) as usize - 1;
-        let mut non_phys_prob = 0.0;
 
         p_of_v_given_r[i][0] = (4.0 * PI / 3.0) * (f[i][0] / rho_points[i]) * (0.5*v_points[1]).powi(3);
         normalization_check[i] += p_of_v_given_r[i][0];
         
         for j in 1..v_esc_arg {
-            
             p_of_v_given_r[i][j] = (4.0 * PI / 3.0) * (f[i][j] / rho_points[i]) * ((0.5*(v_points[j+1] + v_points[j])).powi(3) - (0.5*(v_points[j] + v_points[j-1])).powi(3));
             normalization_check[i] += p_of_v_given_r[i][j];
-            
-            if j >= v_esc_arg {
-                panic!("bounds not working");
-            }
         }
 
-        println!("Normalization check: {}", normalization_check[i]);
+        //println!("Normalization check: {}", normalization_check[i]);
         //println!("p(v>v_esc|r) = {}", non_phys_prob);
-        if normalization_check[i] < 1.0 && !norm_drop {
+        if normalization_check[i] < 0.8 && !norm_drop {
             norm_drop = true;
-            println!("Possible V_max bounds issue at r = {} with p(v|r)={} at the end", r_points[i], p_of_v_given_r[i][VELOCITY_GRID_NUM - 1])
+            println!("Normalization below 0.8 at r={}", r_points[i])
         }
 
         //renormalizing
@@ -133,10 +141,11 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> anyhow::Result<f64>>(rho: T, r_max
             //p_of_v_given_r[i][j] /= normalization_check[i];
         }
     }
+    println!("Normalizations ran from {} to {}", normalization_check[0], normalization_check[normalization_check.len() - 1]);
 
-    plot_func(&r_points, &compute_velocity_dispersion(&v_points, &p_of_v_given_r), &"test_v_disp.png")?;
-    plot_rho_recovery_test(&r_points, &rho_points, &recover_rho(&f, &v_points), &"Eddington_Inversion_convergence_test.png")?;
-
+    plot_check_function(&r_points, &|r: f64| -> anyhow::Result<f64> {Ok(GG*1e8/(6.0*(1.0 + r.powi(2)).sqrt()))}, &compute_velocity_dispersion(&v_points, &p_of_v_given_r), &"Eddington_Inversion_Velocity_Dispersion_test.png", &"Velocity Dispersion Reconstructed From Eddington Inversion", &"r (kpc)", &"sigma^2 (km^2/s^2)")?;
+    plot_check_function(&r_points, &rho, &recover_rho(&f, &v_points), &"Eddington_Inversion_Density_test.png", &"Density Reconstructed From Eddington Inversion", &"r (kpc)", &"rho (M_sun / kpc^3)")?;
+    
     Ok(())
 }
 
@@ -209,87 +218,13 @@ fn recover_rho(f: &Vec<Vec<f64>>, v_points: &Vec<f64>) -> Vec<f64> {
     let mut rho: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
 
     for i in 0..SPACIAL_GRID_NUM {
-        rho[i] = f[i][0] * 4.0 * PI * pow(0.5*v_points[1], 3)/3.0;
+        rho[i] = f[i][0] * 4.0 * PI * (0.5*v_points[1]).powi(3)/3.0;
         for j in 1..(VELOCITY_GRID_NUM - 1) {
-            rho[i] += f[i][j] * 4.0 * PI * (pow(0.5*(v_points[j+1] + v_points[j]), 3) - pow(0.5*(v_points[j] + v_points[j-1]), 3)) / 3.0;
+            rho[i] += f[i][j] * 4.0 * PI * ((0.5*(v_points[j+1] + v_points[j])).powi(3) - (0.5*(v_points[j] + v_points[j-1])).powi(3)) / 3.0;
         }
         // Assumes linear spacing or r for last step, shouldn't matter since rho should basically be zero out here anyway
-        rho[i] += f[i][VELOCITY_GRID_NUM - 1] * 4.0 * PI * (pow(1.5*v_points[VELOCITY_GRID_NUM - 1] - 0.5*v_points[VELOCITY_GRID_NUM - 2], 3) - pow(0.5*(v_points[VELOCITY_GRID_NUM - 1] + v_points[VELOCITY_GRID_NUM-2]), 3)) / 3.0;
+        rho[i] += f[i][VELOCITY_GRID_NUM - 1] * 4.0 * PI * ((1.5*v_points[VELOCITY_GRID_NUM - 1] - 0.5*v_points[VELOCITY_GRID_NUM - 2]).powi(3) - (0.5*(v_points[VELOCITY_GRID_NUM - 1] + v_points[VELOCITY_GRID_NUM-2])).powi(3)) / 3.0;
     }
 
     rho
-}
-
-fn plot_rho_recovery_test(r_points: &Vec<f64>, rho_points: &Vec<f64>, recovered_rho_points: &Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> { 
-    let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
-    root.fill(&WHITE)?;
-
-    let mut y_min = f64::MAX;
-    let mut y_max = f64::MIN;
-
-    for i in 0..rho_points.len() {
-        if rho_points[i] > y_max {
-            y_max = rho_points[i]
-        }
-        if rho_points[i] < y_min {
-            y_min = rho_points[i]
-        }
-    }
-
-    let mut chart = ChartBuilder::on(&root)
-        .caption("Invertability test for eddington inversion", ("sans-serif", 40))
-        .margin(10)
-        .x_label_area_size(30)
-        .y_label_area_size(60)
-        .build_cartesian_2d((r_points[0]..r_points[r_points.len() - 1]),
-            ((y_min+1e-4) * match y_min.signum() {
-                1.0 => 0.9,
-                -1.0 => 1.1,
-                _ => panic!("number has no sign, is probably NaN")
-            }..y_max * match y_max.signum() {
-                1.0 => 1.1,
-                -1.0 => 0.9,
-                _ => panic!("number has no sign, is probably NaN")
-            })
-        )?;
-
-    chart.configure_mesh()
-        .x_desc("r (kpc)")           // X-axis label
-        .y_desc("rho (M_sun / kpc^3)") // Y-axis label
-        .x_label_formatter(&|x| {
-        if x.abs() >= 1000.0 {
-            format!("{:.1e}", x)
-        } else {
-            format!("{:.1}", x)
-        }
-        })
-        .y_label_formatter(&|y| {
-            if y.abs() >= 1000.0 {
-                format!("{:.1e}", y)
-            } else {
-                format!("{:.1}", y)
-            }
-        })
-        .draw()?;
-
-    let mut plot_profile: Vec<(f64, f64)> = (0..r_points.len())
-        .map(|i| (r_points[i], rho_points[i]))
-        .collect();
-
-    chart.draw_series(LineSeries::new(plot_profile, &BLUE))?.label("input density profile").legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
-
-    let mut plot_profile: Vec<(f64, f64)> = (0..r_points.len())
-        .map(|i| (r_points[i], recovered_rho_points[i]))
-        .collect();
-
-    chart.draw_series(LineSeries::new(plot_profile, &RED))?.label("density profile calculated by eddington inversion").legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
-
-    chart.configure_series_labels()
-        .background_style(&WHITE.mix(0.8))
-        .border_style(&BLACK)
-        .draw()?;
-
-    root.present()?;
-    println!("rho recovery plot saved as {}", filename);
-    Ok(())
 }

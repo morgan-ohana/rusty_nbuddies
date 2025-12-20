@@ -3,7 +3,6 @@ use std::fs::{File};
 use std::io::{BufWriter, BufReader, Write, Read};
 use std::path::Path;
 use bincode;
-use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use crate::black_hole::BlackHole;
 
 #[derive(Serialize, Deserialize, Clone)]

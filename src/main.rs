@@ -29,15 +29,15 @@ const OUTPUT_DIRECTORY: &str = "output";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     //abg_profile_init_conds(&1.0, &3.0, &1.0, &1.0, &1e7, &14.1, &4)?;
-    //plummer_init_conds(&1.0, &1e8, &4)?;
+    plummer_init_conds(&1.0, &1e8, &4)?;
 
-    run_simulation()?;
+    //run_simulation()?;
 
-    plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
-    create_comprehensive_plots("test", OUTPUT_DIRECTORY)?;
+    //plot_black_hole_trajectories(OUTPUT_DIRECTORY, "test_trajectories.png")?;
+    //create_comprehensive_plots("test", OUTPUT_DIRECTORY)?;
     
-    check_energy_conservation(OUTPUT_DIRECTORY)?;
-    check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;
+    //check_energy_conservation(OUTPUT_DIRECTORY)?;
+    //check_angular_momentum_conservation(OUTPUT_DIRECTORY)?;
 
     Ok(())
 }
@@ -59,7 +59,7 @@ fn run_simulation() -> Result<(), Box<dyn std::error::Error>> {
     recalculate_dynamics_due_to_gravity(&mut black_holes);
 
     let mut running_time: f64 = 0.0;
-    let mut timestep = f64::MAX;
+    let mut timestep;
 
     for n in 0..STEPS {
         

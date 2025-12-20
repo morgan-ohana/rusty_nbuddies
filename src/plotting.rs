@@ -369,7 +369,7 @@ pub fn plot_energy_vs_time(output_directory: &str, filename: &str) -> Result<(),
     Ok(())
 }
 
-pub fn plot_func(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str) -> Result<(), Box<dyn std::error::Error>> { 
+pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, title: &str, xlabel: &str, ylabel: &str) -> Result<(), Box<dyn std::error::Error>> { 
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -388,7 +388,7 @@ pub fn plot_func(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str) -> Re
     println!("y_min = {:.3}, y_max={:.3}", y_min, y_max);
 
     let mut chart = ChartBuilder::on(&root)
-        .caption(filename, ("sans-serif", 40))
+        .caption(title, ("sans-serif", 40))
         .margin(10)
         .x_label_area_size(30)
         .y_label_area_size(60)
@@ -405,8 +405,85 @@ pub fn plot_func(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str) -> Re
         )?;
 
     chart.configure_mesh()
-        .x_desc("x")           // X-axis label
-        .y_desc("y") // Y-axis label
+        .x_desc(xlabel)           // X-axis label
+        .y_desc(ylabel) // Y-axis label
+        .x_label_formatter(&|x| {
+        if x.abs() >= 1000.0 {
+            format!("{:.1e}", x)
+        } else {
+            format!("{:.1}", x)
+        }
+        })
+        .y_label_formatter(&|y| {
+            if y.abs() >= 1000.0 {
+                format!("{:.1e}", y)
+            } else {
+                format!("{:.1}", y)
+            }
+        })
+        .draw()?;
+
+    let plot_profile: Vec<(f64, f64)> = (0..x_points.len())
+        .map(|i| (x_points[i], y_points[i]))
+        .collect();
+
+    chart.draw_series(LineSeries::new(plot_profile, &BLUE))?;
+
+    root.present()?;
+    println!("test plot saved as {}", filename);
+    Ok(())
+}
+
+pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64>, analytic_check: &T, numerical_check: &Vec<f64>, filename: &str, title: &str, xlabel: &str, ylabel: &str) -> Result<(), Box<dyn std::error::Error>> { 
+    let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut y_min = f64::MAX;
+    let mut y_max = f64::MIN;
+
+    let mut analytic_points: Vec<f64> = vec![0.0; x_points.len()];
+    for i in 0..x_points.len() {
+        analytic_points[i] = analytic_check(x_points[i])?;
+    }
+
+    for i in 0..analytic_points.len() {
+        //finding max
+        if analytic_points[i] > y_max {
+            y_max = analytic_points[i]
+        }
+        if numerical_check[i] > y_max {
+            y_max = numerical_check[i]
+        }
+
+        //finding min
+        if analytic_points[i] < y_min {
+            y_min = analytic_points[i]
+        }
+        if numerical_check[i] < y_min {
+            y_min = numerical_check[i]
+        }
+    }
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 40))
+        .margin(10)
+        .x_label_area_size(30)
+        .y_label_area_size(60)
+        .build_cartesian_2d((x_points[0]..x_points[x_points.len() - 1]),
+            ((y_min+1e-4) * match y_min.signum() {
+                1.0 => 0.9,
+                -1.0 => 1.1,
+                _ => panic!("number has no sign, is probably NaN")
+            }..y_max * match y_max.signum() {
+                1.0 => 1.1,
+                -1.0 => 0.9,
+                _ => panic!("number has no sign, is probably NaN")
+            })
+        )?;
+
+    chart.configure_mesh()
+        .x_desc(xlabel)           // X-axis label
+        .y_desc(ylabel) // Y-axis label
         .x_label_formatter(&|x| {
         if x.abs() >= 1000.0 {
             format!("{:.1e}", x)
@@ -424,18 +501,23 @@ pub fn plot_func(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str) -> Re
         .draw()?;
 
     let mut plot_profile: Vec<(f64, f64)> = (0..x_points.len())
-        .map(|i| (x_points[i], y_points[i]))
+        .map(|i| (x_points[i], numerical_check[i]))
         .collect();
 
-    chart.draw_series(LineSeries::new(plot_profile, &BLUE))?;
-
+    chart.draw_series(LineSeries::new(plot_profile, &BLUE))?.label("Numerical Result").legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+    
     let mut plot_profile: Vec<(f64, f64)> = (0..x_points.len())
-        .map(|i| (x_points[i], (GG*1e8/(6.0*(1.0 + x_points[i]*x_points[i]).sqrt()))))
+        .map(|i| (x_points[i], analytic_points[i]))
         .collect();
 
-    chart.draw_series(LineSeries::new(plot_profile, &RED))?;
+    chart.draw_series(DashedLineSeries::new(plot_profile, 5, 5, (&RED).into()))?.label("Analytic Result").legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    chart.configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw()?;
 
     root.present()?;
-    println!("test plot saved as {}", filename);
+    println!("Analytic check plot saved as {}", filename);
     Ok(())
 }

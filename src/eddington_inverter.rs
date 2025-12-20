@@ -1,19 +1,21 @@
-use num_traits::pow;
 use std::f64::consts::PI;
+use std::f64::consts::SQRT_2;
 use crate::forces::GG;
 use crate::init_conds::SPACIAL_GRID_NUM;
 use crate::init_conds::VELOCITY_GRID_NUM;
 
-use crate::plotting::plot_func;
+use crate::plotting::plot_check_function;
+use crate::plotting::plot_function;
 
 const ENERGY_GRID_NUM: usize = 10000;
 const OFFSET: f64 = 1e-10; //for when something really just shouldn't be zero
 
 pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool) -> Result<Vec<Vec<f64>>, Box<dyn std::error::Error>> {
+    plot_check_function(&potential_points, &|v: f64| -> anyhow::Result<f64> {Ok(-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4)))}, &rho_points, &"rho_vs_V_test.png", &"drho/dV", &"V", &"rho")?;
+
+    let d2rho_dpotential2 = differentiate(&differentiate(&rho_points, &potential_points, cuspy, true), &potential_points, cuspy, false);
     
-    let drho_dpotential = generate_drho_dpotential(&rho_points, &potential_points, cuspy);
-    
-    let energy_min: f64 = potential_points[0];
+    let energy_min: f64 = potential_points[0]*1.001; // .1% buffer to prevent any points having exactly the minimum energy;
     let energy_max: f64 = match cuspy {
         true => energy_min*1e-3,
         false => 0.0
@@ -32,17 +34,19 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
         };
     }
 
-    let mut integral: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
+    let mut f_of_energy: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
 
     //values at max r and v left at 0 (presumably those regions are unoccupied anyway)
     let mut integral_range_exhausted = false;
     for j in 0..ENERGY_GRID_NUM {
-        for k in 1..SPACIAL_GRID_NUM {
-            //Index backwards from E_max at r_max down to E at r
-            let i = SPACIAL_GRID_NUM - 1 - k;
+        for k in 2..(d2rho_dpotential2.len()) {
+            //Index backwards from E_max at r_max down to E at r, start at len - 2 since int is computed by trapezoids between i and i+1
+            let i = d2rho_dpotential2.len() - k;
+            //Note d2r_d2V is one point shorter on both ends so V[i+1] is at the same place as d2rdV2[i]
+            let l = i + 1;
 
-            if potential_points[i] <= energy_points[j] {
-                //enforce integral lower bound
+            //enforce integral lower bound
+            if potential_points[i+1] <= energy_points[j] {
                 if k == 1 && !integral_range_exhausted {
                     println!("integral range exhausted at {}", j);
                     integral_range_exhausted = true;
@@ -50,28 +54,24 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
                 break
             }
 
-            let delta_potential = potential_points[i+1] - potential_points[i];
-            let integrand = drho_dpotential[i] / (potential_points[i] - energy_points[j]).sqrt();
+            let delta_potential = potential_points[l+1] - potential_points[l];
+            let integrand_term_1 = d2rho_dpotential2[i] / (potential_points[l] - energy_points[j]).sqrt();
+            let integrand_term_2 = d2rho_dpotential2[i+1] / (potential_points[l+1] - energy_points[j]).sqrt();
             
-            integral[j] += integrand * delta_potential;
+            //trapezoidal sum
+            f_of_energy[j] += 0.5 * (integrand_term_1 + integrand_term_2) * delta_potential;
         }
-    }
-    
-    denoise(&mut integral);
-    
-    let mut f_of_energy: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
-
-    for j in 0..(ENERGY_GRID_NUM - 1) {
-        f_of_energy[j] = match cuspy {
-            true => (0.5 * (integral[j+1] + integral[j])) * ((-1.0*integral[j+1] + OFFSET).ln() - (-1.0*integral[j] + OFFSET).ln()) / (energy_points[j+1] - energy_points[j]),
-            false => (integral[j+1] - integral[j]) / (energy_points[j+1] - energy_points[j])
-        };
-        f_of_energy[j] /= 8.0_f64.sqrt() * PI * PI;
+        //prefactor
+        f_of_energy[j] /= PI.powi(2) * 2.0 * SQRT_2;
+        
         if f_of_energy[j] < 0.0 {
             panic!("Negative distribution function, Eddington Inversion has failed at j={}", j);
         }
     }
-    
+        
+
+    plot_check_function(&energy_points, &|e: f64| -> anyhow::Result<f64> {Ok((24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-e).powi(7).sqrt())}, &f_of_energy, &"Eddington_Inversion_Phasespace_Distribution_test.png", &"Phase Space Distribution From Eddington Inverter", &"Energy (M_sun km^2/s^2)", &"f (M_sun s^3/kpc^3 km^3)")?;
+
     let mut f: Vec<Vec<f64>> = vec![vec![0.0; VELOCITY_GRID_NUM]; SPACIAL_GRID_NUM];
 
     for i in 0..SPACIAL_GRID_NUM {
@@ -84,73 +84,31 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
             }
             
             //binary search for neighborhood
-            let mut search_space = ENERGY_GRID_NUM as f64;
-            let mut e_arg: usize = (search_space / 2.0).round() as usize;
+            let mut low = 0;
+            let mut high = ENERGY_GRID_NUM - 1;
             
-            while search_space >= 1.0 && e_arg != 0 && e_arg != ENERGY_GRID_NUM - 1 {
-                //shrink search
-                search_space /= 2.0;
-
-                //enforce bounds on idx
-                if search_space > e_arg as f64 {
-                    search_space = e_arg as f64
-                }
-                if search_space > (ENERGY_GRID_NUM - 1 - e_arg) as f64 {
-                    search_space = (ENERGY_GRID_NUM - 1 - e_arg) as f64
-                }
+            while high - low > 1 {
+                let mid = (low + high) / 2;
 
                 //check if above or below
-                match energy > energy_points[e_arg] {
-                    true => e_arg += (search_space / 2.0).round() as usize,
-                    false => e_arg -= (search_space /2.0).round() as usize
+                match energy > energy_points[mid] {
+                    true => low = mid,
+                    false => high = mid
                 };
             }
+            //low and high now bracket the energy value
             
-            //check if at end and skip interpolation:
-            if e_arg == ENERGY_GRID_NUM - 1 {
-                f[i][j] = energy_points[e_arg];
-                continue
-            }
-
-            //identity interval where E lies
-            let mut found_interval = false;
-            const NEIGHBORHOOD_WIDTH: usize= 1;
-            for k in (e_arg - NEIGHBORHOOD_WIDTH)..(e_arg + NEIGHBORHOOD_WIDTH + 1) {
-                if (energy_points[k+1] - energy) > 0.0 && (energy - energy_points[k]) >= 0.0 {
-                    e_arg = k;
-                    found_interval = true;
-                    break
-                }
-            }
-            if !found_interval {
-                panic!("Failed to find correct interval for E at i = {}, j = {} with energy of {} in the neighborhood of {} with e_arg = {}", i, j, energy, energy_points[e_arg], e_arg)
-            }
-
             //linear interpolation over interval
-            let t = (energy - energy_points[e_arg]) / (energy_points[e_arg + 1] - energy_points[e_arg]);
-            f[i][j] = f_of_energy[e_arg] * (1.0 - t) + f_of_energy[e_arg + 1] * t;
+            let t = (energy - energy_points[low]) / (energy_points[high] - energy_points[low]);
+            f[i][j] = f_of_energy[low] * (1.0 - t) + f_of_energy[high] * t;
+            
         }
     }
 
     Ok(f)
 }
 
-fn denoise(points: &mut Vec<f64>) {
-    //Removes negative spikes patching them over with linear segments
-    let mut j;
-    for i in 0..points.len() {
-        j = 0;
-        while j < (points.len() - i - 1) && points[i+j+1] < points[i] {
-            //println!("i={}, j={}", i, j);
-            j += 1;
-        }
-        for k in 1..(j+1) {
-            points[i+k] = points[i] + (points[i+j+1] - points[i])*((k as f64)/((j+1) as f64));
-        }
-    }
-}
-
-pub fn generate_rho_points<T: Fn(f64) -> anyhow::Result<f64>>(rho: T, r_points: &Vec<f64>) -> anyhow::Result<Vec<f64>> {
+pub fn generate_rho_points<T: Fn(f64) -> anyhow::Result<f64>>(rho: &T, r_points: &Vec<f64>) -> anyhow::Result<Vec<f64>> {
     let mut rho_points: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     for i in 0..SPACIAL_GRID_NUM {
         rho_points[i] = rho(r_points[i])?;
@@ -189,21 +147,34 @@ pub fn generate_potential_points(rho_points: &Vec<f64>, r_points: &Vec<f64>) -> 
     potential_points
 }
 
-fn generate_drho_dpotential(rho_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool) -> Vec<f64> {
-    let mut drho_dpotential: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
+fn differentiate(y: &Vec<f64>, x: &Vec<f64>, cuspy: &bool, forward: bool) -> Vec<f64> {
+    //Assumes y and x start at same point, they do not need to end at same point. That is reverse(forward) is safe, forward(reverse) is not
+    let mut dy_dx: Vec<f64> = vec![0.0; y.len() - 1];
+    let start = match forward {
+        true => 0,
+        false => 1
+    };
 
-    for i in 0..(SPACIAL_GRID_NUM - 1) {
-        drho_dpotential[i] = match cuspy {
+    let end = match forward {
+        true => y.len() - 1,
+        false => y.len()
+    };
+
+    for i in start..end {
+        let j = match forward {
+            true => i,
+            false => i-1
+        };
+
+        dy_dx[j] = match cuspy {
             true => {
-                // using drho/dV = log(rho + OFFSET) dlog(rho + OFFSET)/dV with offset to avoid logs of 0 anywhere
-                (0.5*(rho_points[i+1] + rho_points[i])) * ((rho_points[i+1] + OFFSET).ln() - (rho_points[i] + OFFSET).ln()) / (potential_points[i+1] - potential_points[i])
+                // using dy/dx = (y + offset) dlog(y + OFFSET)/dx with offset to avoid logs of 0 anywhere
+                (0.5*(y[j+1] + y[j])) * ((y[j+1] + OFFSET).ln() - (y[j] + OFFSET).ln()) / (x[j+1] - x[j])
             }
             false => {
-                (rho_points[i+1] - rho_points[i]) / (potential_points[i+1] - potential_points[i])
+                (y[j+1] - y[j]) / (x[j+1] - x[j])
             }
         }
     }
-    //final value left at 0, these large r values shouldn't matter anyway.
-
-    drho_dpotential
+    dy_dx
 }

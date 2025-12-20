@@ -590,7 +590,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "flate2",
  "num-traits",
  "plotters",
  "serde",
