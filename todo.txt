@@ -1,0 +1,20 @@
+EDDINGTON INVERTER
+
+X One problem identified, if r does not extend far enough depth of potential is off due to missing mass at large radii which through everything off deflating f(r,v)
+    - FIXED: now r_max determined by ensuring mass below some control parameter
+O V(r) is correct
+O rho(V) is correct
+O drho/dV(V) is correct
+X f(E)
+    - FiXED integral stabilized bu change of variables to remove singularity
+    - FIXED integral given analytic patch to account for partial bin missed due to granularity of grid near lower bound, no longer suffers from systematic underestimation or any noise
+    - (PARTIALLY) FIXED integral now inserts appropriate asymptotic form to account for missed range of E between max potential on grid and E=0
+O I have verified the f(E) - f(r,v) inversion works accurately
+O I have verified rho recovery performs integral accurately, see integrator_test.png
+
+FIX ME:
+    The partially fixed comment above fits the asymptotic form by assuming polynomial tail, would be nice to properly handle non-polynomial tail like in truncated nfw.
+
+FORCES
+
+implement gravitree

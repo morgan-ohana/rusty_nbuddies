@@ -10,30 +10,24 @@ use crate::plotting::plot_function;
 const ENERGY_GRID_NUM: usize = 10000;
 const OFFSET: f64 = 1e-10; //for when something really just shouldn't be zero
 
-pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool) -> Result<Vec<Vec<f64>>, Box<dyn std::error::Error>> {
-    plot_check_function(&potential_points, &|v: f64| -> anyhow::Result<f64> {Ok(-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4)))}, &rho_points, &"rho_vs_V_test.png", &"rho vs V", &"V", &"rho")?;
+pub enum AsymptoticTail {
+    Polynomial(f64),
+    Exponential(f64, f64)
+}
 
+pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool, tail: AsymptoticTail) -> Result<Vec<Vec<f64>>, Box<dyn std::error::Error>> {
+    //plot_check_function(&potential_points, &|v: f64| -> f64 {-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4))}, &rho_points, &"rho_vs_V_test.png", &"rho vs V", &"V", &"rho")?;
+    
     let d2rho_dpotential2 = differentiate(&differentiate(&rho_points, &potential_points, cuspy, true), &potential_points, cuspy, false);
     
-    plot_function(&potential_points[1 .. potential_points.len()-1].to_vec(), &d2rho_dpotential2, &"d2rho_dV2_test.png", &"d^2rho/dV^2 vs V", &"d^2rho/dV^2", &"V")?;
+    //plot_function(&potential_points[1 .. potential_points.len()-1].to_vec(), &d2rho_dpotential2, &"d2rho_dV2_test.png", &"d^2rho/dV^2 vs V", &"d^2rho/dV^2", &"V")?;
 
-    let energy_min: f64 = potential_points[1]; // .1% buffer to prevent any points having exactly the minimum energy;
-    let energy_max: f64 = match cuspy {
-        true => energy_min*1e-3,
-        false => 0.0
-    };
+    let energy_min: f64 = potential_points[1];
+    let energy_max: f64 = 0.0;
 
-    let log_space_energy = false; //cuspy;
     let mut energy_points: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
     for j in 0..ENERGY_GRID_NUM {
-        energy_points[j] = match log_space_energy {
-            true => {
-                -1.0 * ((-1.0*energy_min).ln() + (j as f64) * ((-1.0 * energy_max).ln() - (-1.0 * energy_min).ln()) / ((ENERGY_GRID_NUM - 1) as f64)).exp()
-            }
-            false => {
-                energy_min + (j as f64) * (0.0 - energy_min) / ((ENERGY_GRID_NUM - 1) as f64)
-            }
-        };
+        energy_points[j] = energy_min + (j as f64) * (0.0 - energy_min) / ((ENERGY_GRID_NUM - 1) as f64)
     }
 
     let mut f_of_energy: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
@@ -41,7 +35,7 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
     let mut integral_range_exhausted = false;
     for j in 0..ENERGY_GRID_NUM {
         // Integral is 0 if no range
-        if energy_points[j] >= potential_points[potential_points.len() - 1] {
+        if energy_points[j] >= potential_points[d2rho_dpotential2.len()] {
             continue
         }
 
@@ -88,14 +82,38 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
         }
     }
 
-    // println!("Analytic Injection!");
-    // for i in 0..ENERGY_GRID_NUM {
-    //     f_of_energy[i] = (24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-energy_points[i]).powi(7).sqrt()
-    // }
+    //println!("Analytic Injection!");
+    let mut a_f_of_energy : Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
+    for i in 0..ENERGY_GRID_NUM {
+        a_f_of_energy[i] = (24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-energy_points[i]).powi(7).sqrt()
+    }
+    let dif = {
+        let mut dif = vec![0.0; ENERGY_GRID_NUM];
+        for i in 0..ENERGY_GRID_NUM {
+            dif[i] = (f_of_energy[i] - a_f_of_energy[i]) / a_f_of_energy[i]
+        }
+        dif
+    };
+    //plot_function(&energy_points, &dif, &"dif.png", &"dif between analytic and numerical f(E)", &"E", &"%dif")?;
 
-    plot_check_function(&energy_points, &|e: f64| -> anyhow::Result<f64> {Ok((24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-e).powi(7).sqrt())}, &f_of_energy, &"Eddington_Inversion_Phasespace_Distribution_test.png", &"Phase Space Distribution From Eddington Inverter", &"Energy (M_sun km^2/s^2)", &"f (M_sun s^3/kpc^3 km^3)")?;
+    //plot_check_function(&energy_points, &|e: f64| -> f64 {(24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-e).powi(7).sqrt()}, &f_of_energy, &"Eddington_Inversion_Phasespace_Distribution_test.png", &"Phase Space Distribution From Eddington Inverter", &"Energy (M_sun km^2/s^2)", &"f (M_sun s^3/kpc^3 km^3)")?;
 
     let mut f: Vec<Vec<f64>> = vec![vec![0.0; VELOCITY_GRID_NUM]; SPACIAL_GRID_NUM];
+
+    let (cutoff_energy, cutoff_idx) = {
+        let mut cutoff_energy = 2.0 * potential_points[potential_points.len() - 1];
+        let mut high = ENERGY_GRID_NUM - 1;
+        let mut low = 0;
+
+        while high - low > 1 {
+            let mid = (low + high) / 2;
+            match cutoff_energy > energy_points[mid] {
+                true => low = mid,
+                false => high = mid
+            }
+        }
+        (energy_points[low], low)
+    };
 
     for i in 0..SPACIAL_GRID_NUM {
         for j in 0..VELOCITY_GRID_NUM {
@@ -103,6 +121,30 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
             
             //ignore unbound regions, f=0 there anyway
             if energy > 0.0 {
+                continue
+            }
+
+            //use asymptotic form in region effected by grid truncation of potential        
+            if energy > cutoff_energy {
+                match tail {
+                    AsymptoticTail::Polynomial(n) => f[i][j] = f_of_energy[cutoff_idx] * (energy/cutoff_energy).powf(n-1.5),
+                    AsymptoticTail::Exponential(a, p) => f[i][j] = f_of_energy[cutoff_idx] * (a*((1.0/(energy + OFFSET)) - (1.0/(cutoff_energy + OFFSET)))).exp() * (energy/cutoff_energy).powf(p)
+                }
+                if i == 0 && j == VELOCITY_GRID_NUM - 1 {
+                    match tail {
+                        AsymptoticTail::Exponential(a,p) => {
+                            dbg!(i,j);
+                            dbg!(f_of_energy[cutoff_idx]);
+                            dbg!(a);
+                            dbg!(p);
+                            dbg!((a*((1.0/(energy + OFFSET)) - (1.0/(cutoff_energy + OFFSET)))));
+                            dbg!((a*((1.0/(energy + 1.0)) - (1.0/(cutoff_energy + 1.0)))).exp());
+                            dbg!(((energy/cutoff_energy) + OFFSET).powf(p));
+                            dbg!(f[i][j]);
+                        },
+                        _ => ()
+                    }
+                }
                 continue
             }
             
@@ -131,10 +173,10 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, p
     Ok(f)
 }
 
-pub fn generate_rho_points<T: Fn(f64) -> anyhow::Result<f64>>(rho: &T, r_points: &Vec<f64>) -> anyhow::Result<Vec<f64>> {
+pub fn generate_rho_points<T: Fn(f64) -> f64>(rho: &T, r_points: &Vec<f64>) -> anyhow::Result<Vec<f64>> {
     let mut rho_points: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     for i in 0..SPACIAL_GRID_NUM {
-        rho_points[i] = rho(r_points[i])?;
+        rho_points[i] = rho(r_points[i]);
     }
 
     Ok(rho_points)
@@ -172,6 +214,9 @@ pub fn generate_potential_points(rho_points: &Vec<f64>, r_points: &Vec<f64>) -> 
 
 fn differentiate(y: &Vec<f64>, x: &Vec<f64>, cuspy: &bool, forward: bool) -> Vec<f64> {
     //Assumes y and x start at same point, they do not need to end at same point. That is reverse(forward) is safe, forward(reverse) is not
+    //Cuspy functions must be all of one sign
+
+    let sign = y[0].signum();
     let mut dy_dx: Vec<f64> = vec![0.0; y.len() - 1];
     let start = match forward {
         true => 0,
@@ -192,7 +237,8 @@ fn differentiate(y: &Vec<f64>, x: &Vec<f64>, cuspy: &bool, forward: bool) -> Vec
         dy_dx[j] = match cuspy {
             true => {
                 // using dy/dx = (y + offset) dlog(y + OFFSET)/dx with offset to avoid logs of 0 anywhere
-                (0.5*(y[j+1] + y[j])) * ((y[j+1] + OFFSET).ln() - (y[j] + OFFSET).ln()) / (x[j+1] - x[j])
+                // note if y is negative dy/dx = -d(-y)/dx = - (-y) dln(-y)/dx = y dln(-y)/dx
+                (0.5*(y[j+1] + y[j])) * ((sign * y[j+1] + OFFSET).ln() - (sign * y[j] + OFFSET).ln()) / (x[j+1] - x[j])
             }
             false => {
                 (y[j+1] - y[j]) / (x[j+1] - x[j])
@@ -200,4 +246,32 @@ fn differentiate(y: &Vec<f64>, x: &Vec<f64>, cuspy: &bool, forward: bool) -> Vec
         }
     }
     dy_dx
+}
+
+fn estimate_density_slope_at_large_r(rho_points: &Vec<f64>, r_points: &Vec<f64>) -> f64 {
+    // Use the last 10% of points to estimate slope
+    let start_idx = (r_points.len() as f64 * 0.9) as usize;
+    
+    let mut sum_log_r = 0.0;
+    let mut sum_log_rho = 0.0;
+    let mut sum_log_r_sq = 0.0;
+    let mut sum_log_r_log_rho = 0.0;
+    let mut count = 0.0;
+    
+    for i in start_idx..r_points.len() {
+        let log_r = r_points[i].ln();
+        let log_rho = rho_points[i].ln();
+        
+        sum_log_r += log_r;
+        sum_log_rho += log_rho;
+        sum_log_r_sq += log_r * log_r;
+        sum_log_r_log_rho += log_r * log_rho;
+        count += 1.0;
+    }
+    
+    // Slope of log(ρ) vs log(r) is -n
+    let n = -(count * sum_log_r_log_rho - sum_log_r * sum_log_rho) 
+            / (count * sum_log_r_sq - sum_log_r * sum_log_r);
+    
+    n
 }

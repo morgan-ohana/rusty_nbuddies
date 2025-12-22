@@ -387,13 +387,9 @@ pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, t
 
     println!("y_min = {:.3}, y_max={:.3}", y_min, y_max);
 
-    let mut chart = ChartBuilder::on(&root)
-        .caption(title, ("sans-serif", 40))
-        .margin(10)
-        .x_label_area_size(30)
-        .y_label_area_size(60)
-        .build_cartesian_2d((x_points[0]..x_points[x_points.len() - 1]),
-            ((y_min+1e-4) * match y_min.signum() {
+    let x_range = (x_points[0]..x_points[x_points.len() - 1]);
+
+    let y_range = ((y_min+1e-4) * match y_min.signum() {
                 1.0 => 0.9,
                 -1.0 => 1.1,
                 _ => panic!("number has no sign, is probably NaN")
@@ -401,8 +397,14 @@ pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, t
                 1.0 => 1.1,
                 -1.0 => 0.9,
                 _ => panic!("number has no sign, is probably NaN")
-            })
-        )?;
+            });//.log_scale();
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, ("sans-serif", 40))
+        .margin(10)
+        .x_label_area_size(30)
+        .y_label_area_size(60)
+        .build_cartesian_2d(x_range, y_range)?;
 
     chart.configure_mesh()
         .x_desc(xlabel)           // X-axis label
@@ -434,7 +436,7 @@ pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, t
     Ok(())
 }
 
-pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64>, analytic_check: &T, numerical_check: &Vec<f64>, filename: &str, title: &str, xlabel: &str, ylabel: &str) -> Result<(), Box<dyn std::error::Error>> { 
+pub fn plot_check_function<T: Fn(f64) -> f64>(x_points: &Vec<f64>, analytic_check: &T, numerical_check: &Vec<f64>, filename: &str, title: &str, xlabel: &str, ylabel: &str) -> Result<(), Box<dyn std::error::Error>> { 
     let root = BitMapBackend::new(filename, (1024, 768)).into_drawing_area();
     root.fill(&WHITE)?;
 
@@ -443,16 +445,18 @@ pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64
 
     let mut analytic_points: Vec<f64> = vec![0.0; x_points.len()];
     for i in 0..x_points.len() {
-        analytic_points[i] = analytic_check(x_points[i])?;
+        analytic_points[i] = analytic_check(x_points[i]);
     }
-
+    
     for i in 0..analytic_points.len() {
         //finding max
         if analytic_points[i] > y_max {
             y_max = analytic_points[i]
         }
         if numerical_check[i] > y_max {
-            y_max = numerical_check[i]
+            //y_max = numerical_check[i]
+            dbg!(numerical_check[i]);
+            dbg!(i);
         }
 
         //finding min
@@ -464,34 +468,36 @@ pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64
         }
     }
 
+    let x_range = (x_points[0]..x_points[x_points.len() - 1]).log_scale();
+    
+    let y_range = ((y_min+1e-4) * match y_min.signum() {
+            1.0 => 0.9,
+            -1.0 => 1.1,
+            _ => panic!("number has no sign, is probably NaN")
+        }..y_max * match y_max.signum() {
+            1.0 => 1.1,
+            -1.0 => 0.9,
+            _ => panic!("number has no sign, is probably NaN")
+        }).log_scale();
+    
     let mut chart = ChartBuilder::on(&root)
         .caption(title, ("sans-serif", 40))
         .margin(10)
         .x_label_area_size(30)
         .y_label_area_size(60)
-        .build_cartesian_2d((x_points[0]..x_points[x_points.len() - 1]),
-            ((y_min+1e-4) * match y_min.signum() {
-                1.0 => 0.9,
-                -1.0 => 1.1,
-                _ => panic!("number has no sign, is probably NaN")
-            }..y_max * match y_max.signum() {
-                1.0 => 1.1,
-                -1.0 => 0.9,
-                _ => panic!("number has no sign, is probably NaN")
-            })
-        )?;
+        .build_cartesian_2d(x_range, y_range)?;
 
     chart.configure_mesh()
         .x_desc(xlabel)           // X-axis label
         .y_desc(ylabel) // Y-axis label
-        .x_label_formatter(&|x| {
-        if x.abs() >= 1000.0 {
-            format!("{:.1e}", x)
-        } else {
-            format!("{:.1}", x)
-        }
+        .x_label_formatter(&|x: &f64| {
+            if x.abs() >= 1000.0 {
+                format!("{:.1e}", x)
+            } else {
+                format!("{:.1}", x)
+            }
         })
-        .y_label_formatter(&|y| {
+        .y_label_formatter(&|y: &f64| {
             if y.abs() >= 1000.0 {
                 format!("{:.1e}", y)
             } else {
@@ -499,7 +505,7 @@ pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64
             }
         })
         .draw()?;
-
+    
     let mut plot_profile: Vec<(f64, f64)> = (0..x_points.len())
         .map(|i| (x_points[i], numerical_check[i]))
         .collect();
@@ -516,7 +522,7 @@ pub fn plot_check_function<T: Fn(f64) -> anyhow::Result<f64>>(x_points: &Vec<f64
         .background_style(&WHITE.mix(0.8))
         .border_style(&BLACK)
         .draw()?;
-
+    
     root.present()?;
     println!("Analytic check plot saved as {}", filename);
     Ok(())
