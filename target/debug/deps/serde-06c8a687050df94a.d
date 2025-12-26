@@ -1,0 +1,12 @@
+/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/deps/serde-06c8a687050df94a.d: /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs
+
+/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/deps/libserde-06c8a687050df94a.rmeta: /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs
+
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out/private.rs:
+
+# env-dep:OUT_DIR=/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/build/serde-f38b255d54569d39/out

@@ -11,11 +11,11 @@ const ENERGY_GRID_NUM: usize = 10000;
 const OFFSET: f64 = 1e-10; //for when something really just shouldn't be zero
 
 pub enum AsymptoticTail {
-    Polynomial(f64),
+    PowerLaw(f64),
     Exponential(f64, f64)
 }
 
-pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool, tail: AsymptoticTail) -> Result<Vec<Vec<f64>>, Box<dyn std::error::Error>> {
+pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool, tail: AsymptoticTail) -> Vec<Vec<f64>> {
     //plot_check_function(&potential_points, &|v: f64| -> f64 {-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4))}, &rho_points, &"rho_vs_V_test.png", &"rho vs V", &"V", &"rho")?;
     
     let d2rho_dpotential2 = differentiate(&differentiate(&rho_points, &potential_points, cuspy, true), &potential_points, cuspy, false);
@@ -27,12 +27,11 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v
 
     let mut energy_points: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
     for j in 0..ENERGY_GRID_NUM {
-        energy_points[j] = energy_min + (j as f64) * (0.0 - energy_min) / ((ENERGY_GRID_NUM - 1) as f64)
+        energy_points[j] = energy_min + (j as f64) * (energy_max - energy_min) / ((ENERGY_GRID_NUM - 1) as f64)
     }
 
     let mut f_of_energy: Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
 
-    let mut integral_range_exhausted = false;
     for j in 0..ENERGY_GRID_NUM {
         // Integral is 0 if no range
         if energy_points[j] >= potential_points[d2rho_dpotential2.len()] {
@@ -82,26 +81,10 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v
         }
     }
 
-    //println!("Analytic Injection!");
-    let mut a_f_of_energy : Vec<f64> = vec![0.0; ENERGY_GRID_NUM];
-    for i in 0..ENERGY_GRID_NUM {
-        a_f_of_energy[i] = (24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-energy_points[i]).powi(7).sqrt()
-    }
-    let dif = {
-        let mut dif = vec![0.0; ENERGY_GRID_NUM];
-        for i in 0..ENERGY_GRID_NUM {
-            dif[i] = (f_of_energy[i] - a_f_of_energy[i]) / a_f_of_energy[i]
-        }
-        dif
-    };
-    //plot_function(&energy_points, &dif, &"dif.png", &"dif between analytic and numerical f(E)", &"E", &"%dif")?;
-
-    //plot_check_function(&energy_points, &|e: f64| -> f64 {(24.0*2.0_f64.sqrt()/(7.0*PI.powi(3))) * (GG.powi(-5))*(1e8_f64).powi(-4) * (-e).powi(7).sqrt()}, &f_of_energy, &"Eddington_Inversion_Phasespace_Distribution_test.png", &"Phase Space Distribution From Eddington Inverter", &"Energy (M_sun km^2/s^2)", &"f (M_sun s^3/kpc^3 km^3)")?;
-
     let mut f: Vec<Vec<f64>> = vec![vec![0.0; VELOCITY_GRID_NUM]; SPACIAL_GRID_NUM];
 
     let (cutoff_energy, cutoff_idx) = {
-        let mut cutoff_energy = 2.0 * potential_points[potential_points.len() - 1];
+        let cutoff_energy = 2.0 * potential_points[potential_points.len() - 1];
         let mut high = ENERGY_GRID_NUM - 1;
         let mut low = 0;
 
@@ -127,23 +110,9 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v
             //use asymptotic form in region effected by grid truncation of potential        
             if energy > cutoff_energy {
                 match tail {
-                    AsymptoticTail::Polynomial(n) => f[i][j] = f_of_energy[cutoff_idx] * (energy/cutoff_energy).powf(n-1.5),
-                    AsymptoticTail::Exponential(a, p) => f[i][j] = f_of_energy[cutoff_idx] * (a*((1.0/(energy + OFFSET)) - (1.0/(cutoff_energy + OFFSET)))).exp() * (energy/cutoff_energy).powf(p)
-                }
-                if i == 0 && j == VELOCITY_GRID_NUM - 1 {
-                    match tail {
-                        AsymptoticTail::Exponential(a,p) => {
-                            dbg!(i,j);
-                            dbg!(f_of_energy[cutoff_idx]);
-                            dbg!(a);
-                            dbg!(p);
-                            dbg!((a*((1.0/(energy + OFFSET)) - (1.0/(cutoff_energy + OFFSET)))));
-                            dbg!((a*((1.0/(energy + 1.0)) - (1.0/(cutoff_energy + 1.0)))).exp());
-                            dbg!(((energy/cutoff_energy) + OFFSET).powf(p));
-                            dbg!(f[i][j]);
-                        },
-                        _ => ()
-                    }
+                    AsymptoticTail::PowerLaw(n) => f[i][j] = f_of_energy[cutoff_idx] * (energy/cutoff_energy).powf(n-1.5),
+                    //Of set to prevent 1/0 anywhere. Keeping in mind p may be negative it's base also needs offset
+                    AsymptoticTail::Exponential(a, p) => f[i][j] = f_of_energy[cutoff_idx] * (a*((1.0/(energy - OFFSET)) - (1.0/(cutoff_energy - OFFSET)))).exp() * (energy/cutoff_energy + OFFSET).powf(p)
                 }
                 continue
             }
@@ -170,16 +139,16 @@ pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v
         }
     }
 
-    Ok(f)
+    f
 }
 
-pub fn generate_rho_points<T: Fn(f64) -> f64>(rho: &T, r_points: &Vec<f64>) -> anyhow::Result<Vec<f64>> {
+pub fn generate_rho_points<T: Fn(f64) -> f64>(rho: &T, r_points: &Vec<f64>) -> Vec<f64> {
     let mut rho_points: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     for i in 0..SPACIAL_GRID_NUM {
         rho_points[i] = rho(r_points[i]);
     }
 
-    Ok(rho_points)
+    rho_points
 }
 
 pub fn generate_potential_points(rho_points: &Vec<f64>, r_points: &Vec<f64>) -> Vec<f64> {

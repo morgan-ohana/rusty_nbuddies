@@ -3,21 +3,21 @@ use std::fs::{File};
 use std::io::{BufWriter, BufReader, Write, Read};
 use std::path::Path;
 use bincode;
-use crate::black_hole::BlackHole;
+use crate::particle::Particle;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SimulationState {
     pub time: f64,
-    pub data: Vec<Vec<BlackHole>>,
+    pub data: Vec<Particle>,
     pub step_count: usize,
     //energy: f64,  // For conservation checking
 }
 
 pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_size: &usize) -> anyhow::Result<()> {
-    if (state.step_count + 1) % batch_size != 0 {
+    if state.step_count % batch_size != 0 {
 	    panic!("saving at irregular interval, likely unitended behavior!");
     }
-    let batch_num = (state.step_count + 1)/batch_size - 1;
+    let batch_num = (state.step_count)/batch_size;
     
     let file = File::create(format!("{}/restart_{:03}.log", output_directory, batch_num))?;
     let mut writer = BufWriter::new(file);        

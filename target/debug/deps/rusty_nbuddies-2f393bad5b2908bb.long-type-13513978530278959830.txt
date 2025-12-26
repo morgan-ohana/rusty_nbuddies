@@ -1,0 +1,1 @@
+for<'b> &'b DynElement<'static, plotters::prelude::BitMapBackend<'_>, (f64, f64, f64)>: PointCollection<'b, (f64, f64)>

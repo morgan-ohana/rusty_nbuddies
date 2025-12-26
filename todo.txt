@@ -8,12 +8,9 @@ O drho/dV(V) is correct
 X f(E)
     - FiXED integral stabilized bu change of variables to remove singularity
     - FIXED integral given analytic patch to account for partial bin missed due to granularity of grid near lower bound, no longer suffers from systematic underestimation or any noise
-    - (PARTIALLY) FIXED integral now inserts appropriate asymptotic form to account for missed range of E between max potential on grid and E=0
+    - FIXED integral now inserts appropriate asymptotic form to account for missed range of E between max potential on grid and E=0
 O I have verified the f(E) - f(r,v) inversion works accurately
 O I have verified rho recovery performs integral accurately, see integrator_test.png
-
-FIX ME:
-    The partially fixed comment above fits the asymptotic form by assuming polynomial tail, would be nice to properly handle non-polynomial tail like in truncated nfw.
 
 FORCES
 

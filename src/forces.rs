@@ -1,10 +1,10 @@
-use crate::black_hole::BlackHole;
+use crate::particle::Particle;
 use crate::vectors::*;
 
 pub const GG: f64 = 4.301e-6; // Newton constant km^2 kpc / Msun s^2
 pub const KM_IN_KPC: f64 = 30856776000000000.0; // number of km in kpc
 
-pub fn recalculate_dynamics_due_to_gravity(data: &mut Vec<BlackHole>) {
+pub fn recalculate_dynamics_due_to_gravity(data: &mut Vec<Particle>) {
     for i in 0..data.len() {
         let previous_acceleration = data[i].acceleration.clone();
         data[i].acceleration = [0.0; 3];
@@ -22,7 +22,7 @@ pub fn recalculate_dynamics_due_to_gravity(data: &mut Vec<BlackHole>) {
     };
 }
 
-fn calculate_dynamics_due_to_one_body(target: &BlackHole, previous_target_accel: &[f64; 3], source: &BlackHole) -> ([f64; 3], [f64; 3], [f64; 3]) {
+fn calculate_dynamics_due_to_one_body(target: &Particle, previous_target_accel: &[f64; 3], source: &Particle) -> ([f64; 3], [f64; 3], [f64; 3]) {
     let displacement: [f64; 3] = subtract(&source.position, &target.position);
     let displacement_mag: f64 = magnitude(&displacement);
     
@@ -61,7 +61,7 @@ fn calculate_dynamics_due_to_one_body(target: &BlackHole, previous_target_accel:
     (acceleration, jerk, snap)
 }
 
-pub fn calculate_energy(data: &Vec<BlackHole>) -> (f64, f64) {
+pub fn calculate_energy(data: &Vec<Particle>) -> (f64, f64) {
     // units of energy are Msun km^2 / s^2
     let mut potential: f64 = 0.0;
     let mut kinetic: f64 = 0.0;
@@ -78,15 +78,15 @@ pub fn calculate_energy(data: &Vec<BlackHole>) -> (f64, f64) {
     (kinetic, potential)
 }
 
-fn kinetic_energy(bh: &BlackHole) -> f64 {
-    0.5 * bh.mass * dot_product(&bh.velocity, &bh.velocity)
+fn kinetic_energy(particle: &Particle) -> f64 {
+    0.5 * particle.mass * dot_product(&particle.velocity, &particle.velocity)
 }
 
-fn potential_of_binary_config(bh1: &BlackHole, bh2: &BlackHole) -> f64 {
-    -1.0 * GG * bh1.mass * bh2.mass / magnitude(&subtract(&bh2.position, &bh1.position))
+fn potential_of_binary_config(particle1: &Particle, particle2: &Particle) -> f64 {
+    -1.0 * GG * particle1.mass * particle2.mass / magnitude(&subtract(&particle2.position, &particle1.position))
 }
 
-pub fn calculate_angular_momentum(data: &Vec<BlackHole>) -> [f64; 3] {
+pub fn calculate_angular_momentum(data: &Vec<Particle>) -> [f64; 3] {
     // units of energy are Msun km kpc / s
     let mut angular_momentum: [f64; 3] = [0.0, 0.0, 0.0];
     for i in 0..data.len() {
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_dynamics() {
-        let mut earth = BlackHole {
+        let mut earth = Particle {
             mass: 3.0e-6,
             position: [4.848136811e-9, 0.0, 0.0],
             velocity: [0.0, 29.78, 0.0],
@@ -111,7 +111,7 @@ mod tests {
             snap: [0.0; 3]
         };
 
-        let sun = BlackHole {
+        let sun = Particle {
             mass: 1.0,
             position: [0.0; 3],
             velocity: [0.0; 3],
