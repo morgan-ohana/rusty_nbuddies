@@ -1,3 +1,6 @@
+INIT CONDS
+- Add binary init conds with appropriate eccentricity param
+
 EDDINGTON INVERTER
 
 X One problem identified, if r does not extend far enough depth of potential is off due to missing mass at large radii which through everything off deflating f(r,v)
@@ -15,3 +18,12 @@ O I have verified rho recovery performs integral accurately, see integrator_test
 FORCES
 
 implement gravitree
+
+0: 000 [-,-,-]
+1: 001 [+,-,-]
+2: 010 [-,+,-]
+3: 011 [-,+,+]
+4: 100 [+,-,-]
+5: 101 [+,-,+]
+6: 110 [+,+,-]
+7: 111 [+,+,+]

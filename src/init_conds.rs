@@ -233,7 +233,7 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &
         p_of_r[i] /= total_mass;
     }
 
-    let f: Vec<Vec<f64>> = compute_phase_space_density(&rho_points, &r_points, &v_points, &potential_points, &cuspy, tail);
+    let f: Vec<Vec<f64>> = compute_phase_space_density(&rho_points, &v_points, &potential_points, &cuspy, tail);
 
     let mut p_of_v_given_r: Vec<Vec<f64>> = vec![vec![0.0; VELOCITY_GRID_NUM]; SPACIAL_GRID_NUM];
     let mut normalization_check: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
@@ -343,13 +343,13 @@ fn sample_from_distribution(r_points: &Vec<f64>, p_of_r: &Vec<f64>, v_points: &V
 }
 
 fn random_unit_vector() -> [f64; 3] {
-    let theta = rand::random::<f64>() * 2.0 * PI;
-    let phi = (rand::random::<f64>() * 2.0) - 1.0;
-    let phi = phi.acos();
+    let phi = rand::random::<f64>() * 2.0 * PI; // phi uniform in [0, 2pi]
+    let cos_theta = (rand::random::<f64>() * 2.0) - 1.0; // cos(theta) uniform in [-1, 1]
+    let theta = cos_theta.acos();
 
-    let x = phi.sin() * theta.cos();
-    let y = phi.sin() * theta.sin();
-    let z = phi.cos();
+    let x = theta.sin() * phi.cos();
+    let y = theta.sin() * phi.sin();
+    let z = theta.cos();
 
     [x, y, z]
 }
@@ -434,7 +434,7 @@ fn recover_rho_from_f(f: &Vec<Vec<f64>>, v_points: &Vec<f64>) -> Vec<f64> {
 }
 
 fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T) {
-    let bin_count = 1000;
+    let bin_count = (particles.len() / 1000).max(5);
     let mut rho: Vec<f64> = vec![0.0; bin_count];
     let mut v_disp: Vec<f64> = vec![0.0; bin_count];
     let mut counts: Vec<usize> = vec![0; bin_count];

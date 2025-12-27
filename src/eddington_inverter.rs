@@ -15,7 +15,7 @@ pub enum AsymptoticTail {
     Exponential(f64, f64)
 }
 
-pub fn compute_phase_space_density(rho_points: &Vec<f64>, r_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool, tail: AsymptoticTail) -> Vec<Vec<f64>> {
+pub fn compute_phase_space_density(rho_points: &Vec<f64>, v_points: &Vec<f64>, potential_points: &Vec<f64>, cuspy: &bool, tail: AsymptoticTail) -> Vec<Vec<f64>> {
     //plot_check_function(&potential_points, &|v: f64| -> f64 {-3.0 * v.powi(5) / (4.0 * PI * GG.powi(5) * 1e8_f64.powi(4))}, &rho_points, &"rho_vs_V_test.png", &"rho vs V", &"V", &"rho")?;
     
     let d2rho_dpotential2 = differentiate(&differentiate(&rho_points, &potential_points, cuspy, true), &potential_points, cuspy, false);

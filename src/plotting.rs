@@ -9,8 +9,9 @@ use crate::logging::load_checkpoint;
 
 pub const YEAR: f64 = 31556952.0; // 1 year in sec
 
-pub fn plot_black_hole_trajectories(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let root = BitMapBackend::new(filename, (1024, 1024)).into_drawing_area();
+pub fn plot_trajectories(output_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let scale = 4;
+    let root = BitMapBackend::new(filename, (1024*scale, 1024*scale)).into_drawing_area();
     root.fill(&WHITE)?;
     
     let mut trajectories: Vec<Vec<(f64, f64, f64)>> = Vec::new();
