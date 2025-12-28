@@ -5,9 +5,20 @@ use crate::vectors::*;
 pub const GG: f64 = 4.301e-6; // Newton constant km^2 kpc / Msun s^2
 pub const KM_IN_KPC: f64 = 30856776000000000.0; // number of km in kpc
 
+#[derive(Debug)]
+#[derive(Clone)]
 pub enum ForceCalculationMethod {
     Direct,
     Tree(AccuracyCriterion),
+}
+
+impl ForceCalculationMethod {
+    pub fn name(&self) -> String {
+        match self {
+            ForceCalculationMethod::Direct => String::from("Direct"),
+            ForceCalculationMethod::Tree(criterion) => String::from("Tree") + "-" + &criterion.name()
+        }
+    }
 }
 
 pub fn recalculate_dynamics_due_to_gravity(data: &mut Vec<Particle>, method: &ForceCalculationMethod) {
@@ -226,7 +237,7 @@ mod tests {
 
     #[test]
     fn test_tree() {
-        let mut particles = plummer_init_conds(1.0, 1e8, 5000);
+        let mut particles = plummer_init_conds(1.0, 1e8, 5000, String::from("tests"));
 
         recalculate_dynamics_due_to_gravity(&mut particles, &ForceCalculationMethod::Direct);
         let start = Instant::now();

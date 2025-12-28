@@ -13,13 +13,8 @@ pub struct SimulationState {
     //energy: f64,  // For conservation checking
 }
 
-pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_size: &usize) -> anyhow::Result<()> {
-    if state.step_count % batch_size != 0 {
-	    panic!("saving at irregular interval, likely unitended behavior!");
-    }
-    let batch_num = (state.step_count)/batch_size;
-    
-    let file = File::create(format!("{}/restart_{:03}.log", output_directory, batch_num))?;
+pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_num: &usize) -> anyhow::Result<()> {
+    let file = File::create(format!("{}/snapshot_{:03}.log", output_directory, batch_num))?;
     let mut writer = BufWriter::new(file);        
 
     let encoded = bincode::serialize(state)?;
@@ -33,7 +28,7 @@ pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_si
 pub fn load_checkpoint(output_directory: &str, batch_num: &usize) -> anyhow::Result<SimulationState> {
     let state: SimulationState;
     
-    let file = File::open(format!("{}/restart_{:03}.log", output_directory, batch_num))?;
+    let file = File::open(format!("{}/snapshot_{:03}.log", output_directory, batch_num))?;
     let mut reader = BufReader::new(file);
     
     let mut buffer = Vec::new();
@@ -44,4 +39,32 @@ pub fn load_checkpoint(output_directory: &str, batch_num: &usize) -> anyhow::Res
     println!("Checkpoint loaded: (num: {}, step: {}, time: {:.2})", 
         batch_num, state.step_count, state.time);
     Ok(state)
+}
+
+pub fn load_file(file_name: String) -> anyhow::Result<SimulationState> {
+    let state: SimulationState;
+    
+    let file = File::open(format!("{file_name}"))?;
+    let mut reader = BufReader::new(file);
+    
+    let mut buffer = Vec::new();
+    reader.read_to_end(&mut buffer)?;
+
+    state = bincode::deserialize(&buffer)?;
+        
+    println!("File loaded from {file_name}");
+    Ok(state)
+}
+
+pub fn save_init_conds(file_name: String, data: Vec<Particle>) -> anyhow::Result<()> {
+    let state: SimulationState = SimulationState { time: 0.0, data: data , step_count: 0 };
+
+    let file = File::create(format!("{file_name}"))?;
+    let mut writer = BufWriter::new(file);        
+
+    let encoded = bincode::serialize(&state)?;
+    writer.write_all(&encoded)?;
+
+    println!("Saved Initial Conditions at {file_name}");
+    Ok(())
 }

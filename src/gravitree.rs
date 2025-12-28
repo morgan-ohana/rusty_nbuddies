@@ -2,9 +2,20 @@ use crate::particle::{GravitationalSource, Particle};
 use crate::vectors::*;
 use crate::forces::{GG, KM_IN_KPC};
 
+#[derive(Debug)]
+#[derive(Clone)]
 pub enum AccuracyCriterion {
     Geometric(f64), // opening angle theta
     Dynamical(f64), // alpha parameter
+}
+
+impl AccuracyCriterion {
+    pub fn name(&self) -> String {
+        match self {
+            AccuracyCriterion::Geometric(theta) => String::from(format!("Geomtric Theta = {theta}")),
+            AccuracyCriterion::Dynamical(alpha) => String::from(format!("Dynamical Alpha = {alpha}"))
+        }
+    }
 }
 
 pub enum Node {

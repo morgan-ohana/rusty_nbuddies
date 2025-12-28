@@ -20,7 +20,7 @@ pub fn plot_trajectories(output_directory: &str, filename: &str) -> Result<(), B
     let mut i: usize = 0;
     let mut last_data: Vec<Particle> = Vec::new();
 
-    while Path::new(&format!("{}/restart_{:03}.log", output_directory, i)).exists() {
+    while Path::new(&format!("{}/snapshot_{:03}.log", output_directory, i)).exists() {
         println!("{}", i);
         let data = load_checkpoint(output_directory, &i)?.data;
 
@@ -340,7 +340,7 @@ pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, t
         }
     }
 
-    println!("y_min = {:.3}, y_max={:.3}", y_min, y_max);
+    //println!("y_min = {:.3}, y_max={:.3}", y_min, y_max);
 
     let x_range = (x_points[0]..x_points[x_points.len() - 1]);
 
@@ -387,7 +387,7 @@ pub fn plot_function(x_points: &Vec<f64>, y_points: &Vec<f64>, filename: &str, t
     chart.draw_series(LineSeries::new(plot_profile, &BLUE))?;
 
     root.present()?;
-    println!("test plot saved as {}", filename);
+    println!("Plot saved as {}", filename);
     Ok(())
 }
 
@@ -409,7 +409,7 @@ pub fn plot_check_function<T: Fn(f64) -> f64>(x_points: &Vec<f64>, analytic_chec
             y_max = analytic_points[i]
         }
         if numerical_check[i] > y_max {
-            //y_max = numerical_check[i]
+            y_max = numerical_check[i]
         }
 
         //finding min
@@ -417,7 +417,7 @@ pub fn plot_check_function<T: Fn(f64) -> f64>(x_points: &Vec<f64>, analytic_chec
             y_min = analytic_points[i]
         }
         if numerical_check[i] < y_min {
-            //y_min = numerical_check[i]
+            y_min = numerical_check[i]
         }
     }
 

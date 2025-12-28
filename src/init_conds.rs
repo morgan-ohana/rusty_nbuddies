@@ -1,3 +1,4 @@
+use core::f64;
 use std::f64::consts::PI;
 use statrs::function::gamma as Gamma;
 
@@ -12,7 +13,7 @@ pub const SPACIAL_GRID_NUM: usize = 10000;
 pub const VELOCITY_GRID_NUM: usize = 10000;
 const MASS_ERROR_TOLERANCE: f64 = 0.001;
 
-pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s: f64, r_cutoff_option: Option<f64>, particle_num: usize) -> Vec<Particle> {
+pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s: f64, r_cutoff_option: Option<f64>, particle_num: usize, output_path: String) -> Vec<Particle> {
 
     if gamma > 3.0 {
         panic!("Total mass diverges at small r");
@@ -20,14 +21,7 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
 
     let cuspy: bool = gamma > 0.0;
 
-    let r_points: Vec<f64>;
-    let p_of_r : Vec<f64>;
-    let v_points: Vec<f64>;
-    let p_of_v_given_r : Vec<Vec<f64>>;
-
-    let particle_mass: f64;
-
-    match r_cutoff_option {
+    let particles: Vec<Particle> = match r_cutoff_option {
         Some(r_cutoff) => {
             let rho_cutoff = rho_s / ((r_cutoff / r_s).powf(gamma) * (1.0 + (r_cutoff / r_s).powf(alpha)).powf((beta - gamma) / alpha));
             let r_decay = 0.3 * r_cutoff;
@@ -44,12 +38,12 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
                 panic!("Total mass negative, check your parameters!");
             }
 
-            particle_mass = total_mass / (particle_num as f64);
+            let particle_mass = total_mass / (particle_num as f64);
 
             let r_max = {
                 let mut r_max = 0.0;
                 let mut enclosed_mass_frac = 0.0;
-                let mut i_m = 0.0;
+                let mut i_m;
                 while enclosed_mass_frac < 1.0 - MASS_ERROR_TOLERANCE {
                     r_max += r_s;
                     match r_max < r_cutoff {
@@ -72,7 +66,13 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
             let tail = AsymptoticTail::Exponential(GG * total_mass / r_decay, -delta - 3.0);
             // [GG * M / r_decay] = [km^2 kpc / Msun s^2] [M_sun] / [kpc] = [km^2 / s^2]
 
-            (r_points, p_of_r, v_points, p_of_v_given_r) = generate_init_conds_from_rho(rho, &r_max, &cuspy, tail);
+            let (r_points, p_of_r, v_points, p_of_v_given_r) = generate_init_conds_from_rho(rho, &r_max, &cuspy, tail, output_path.clone());
+
+            let particles = sample_from_distribution(&r_points, &p_of_r, &v_points, &p_of_v_given_r, particle_num, particle_mass);
+    
+            check_output(&particles, &rho, output_path);
+
+            particles
         },
         None => {
             if beta <= 3.0 {
@@ -87,8 +87,7 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
                 panic!("Total mass negative, check your parameters!");
             }
 
-            dbg!(total_mass);
-            particle_mass = total_mass / (particle_num as f64);
+            let particle_mass = total_mass / (particle_num as f64);
 
             let r_max = {
                 let mut r_max = 0.0;
@@ -97,7 +96,6 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
                     r_max += r_s;
                     enclosed_mass_frac = (4.0 * PI * r_s.powi(3) * rho_s * inner_mass_integral(r_max/ r_s, alpha, beta, gamma)) / total_mass;
                 }
-                dbg!(enclosed_mass_frac);
                 r_max
             };
 
@@ -107,13 +105,15 @@ pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s
 
             let tail = AsymptoticTail::PowerLaw(beta);
 
-            (r_points, p_of_r, v_points, p_of_v_given_r) = generate_init_conds_from_rho(rho, &r_max, &cuspy, tail);
-        }
-    }
+            let (r_points, p_of_r, v_points, p_of_v_given_r) = generate_init_conds_from_rho(rho, &r_max, &cuspy, tail, output_path.clone());
 
-    let particles = sample_from_distribution(&r_points, &p_of_r, &v_points, &p_of_v_given_r, particle_num, particle_mass);
+            let particles = sample_from_distribution(&r_points, &p_of_r, &v_points, &p_of_v_given_r, particle_num, particle_mass);
     
-    //check_output(&particles, &|r: f64| -> f64 {rho_s / ((r / r_s).powf(gamma) * (1.0 + (r / r_s).powf(alpha)).powf((beta - gamma) / alpha))});
+            check_output(&particles, &rho, output_path);
+
+            particles
+        }
+    };
 
     particles
 }
@@ -172,23 +172,23 @@ fn outer_mass_integral(r_s: f64, alpha: f64, beta: f64, gamma: f64, r_cutoff: f6
     integral
 }
 
-pub fn plummer_init_conds(r_s: f64, total_mass: f64, particle_num: usize) -> Vec<Particle> {
+pub fn plummer_init_conds(r_s: f64, total_mass: f64, particle_num: usize, output_path: String) -> Vec<Particle> {
     
     let rho_s = 3.0 * total_mass / (4.0 * PI * r_s.powi(2));
 
-    let particles = abg_profile_init_conds(2.0, 5.0, 0.0, r_s, rho_s, None, particle_num);
+    let particles = abg_profile_init_conds(2.0, 5.0, 0.0, r_s, rho_s, None, particle_num, output_path);
 
     particles
 }
 
-pub fn nfw_init_conds(r_s: f64, rho_s: f64, r_cutoff: f64, particle_num: usize) -> Vec<Particle> {
+pub fn nfw_init_conds(r_s: f64, rho_s: f64, r_cutoff: f64, particle_num: usize, output_path: String) -> Vec<Particle> {
     
-    let particles = abg_profile_init_conds(1.0, 3.0, 1.0, r_s, rho_s, Some(r_cutoff), particle_num);
+    let particles = abg_profile_init_conds(1.0, 3.0, 1.0, r_s, rho_s, Some(r_cutoff), particle_num, output_path);
 
     particles
 }
 
-fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &bool, tail: AsymptoticTail) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<Vec<f64>>) {
+fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &bool, tail: AsymptoticTail, output_path: String) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<Vec<f64>>) {
     let mut r_points: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     for i in 0..SPACIAL_GRID_NUM {
         r_points[i] = match cuspy {
@@ -206,8 +206,7 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &
 
     let potential_points = generate_potential_points(&rho_points, &r_points);
     let v_max = (-2.0 * potential_points[0]).sqrt();
-    println!("v_max = {v_max}");
-
+    
     //plot_check_function(&r_points, &|r: f64| -> f64 {- GG*1e8/((1.0 + r.powi(2)).sqrt())}, &potential_points, &"Potential_Points_test.png", &"Potential Points Check", &"r (kpc)", &"V (M_sun km^2/s^2)")?;
 
     let mut v_points: Vec<f64> = vec![0.0; VELOCITY_GRID_NUM];
@@ -238,6 +237,8 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &
     let mut p_of_v_given_r: Vec<Vec<f64>> = vec![vec![0.0; VELOCITY_GRID_NUM]; SPACIAL_GRID_NUM];
     let mut normalization_check: Vec<f64> = vec![0.0; SPACIAL_GRID_NUM];
     
+    let mut normalization_min: f64 = f64::MAX;
+    let mut normalization_max: f64 = 0.0;
     for i in 0..SPACIAL_GRID_NUM {
         let v_escape = (-2.0 * potential_points[i]).sqrt();
         let v_esc_arg = ((v_escape/v_max) * VELOCITY_GRID_NUM as f64) as usize - 1;
@@ -250,19 +251,22 @@ fn generate_init_conds_from_rho<T: Fn(f64) -> f64>(rho: T, r_max: &f64, cuspy: &
             normalization_check[i] += p_of_v_given_r[i][j];
         }
 
-        if normalization_check[i] < 0.9 || normalization_check[i] > 1.1 {
-            panic!("Eddington inversion failed! Velocity space distribution is not normalized, are you sure your asymptotic tail is correct?")
-        }
+        normalization_min = normalization_min.min(normalization_check[i]);
+        normalization_max = normalization_max.max(normalization_check[i]);
 
         //renormalizing
         for j in 0..VELOCITY_GRID_NUM {
             p_of_v_given_r[i][j] /= normalization_check[i];
         }
     }
+
+    if normalization_min < 0.9 || normalization_max > 1.1 {            
+            eprintln!("Velocity space distribution is not normalized, this likely indicates an issue with the asymptotic behavior at large r. Please consult the diagnostic plots to see if the accuracy is sufficient for your needs. Normalization ∈ [{normalization_min}, {normalization_max}]")
+        }
     
-    plot_function(&r_points, &normalization_check, &"Normalization.png", &"Velocity Normalization Check", &"Normalization", &"r").unwrap();
-    plot_check_function(&r_points, &|r: f64| -> f64 {GG*1e8/(6.0*(1.0 + r.powi(2)).sqrt())}, &compute_velocity_dispersion(&v_points, &p_of_v_given_r), &"Eddington_Inversion_Velocity_Dispersion_test.png", &"Velocity Dispersion Reconstructed From Eddington Inversion", &"r (kpc)", &"sigma^2 (km^2/s^2)").unwrap();
-    plot_check_function(&r_points, &rho, &recover_rho_from_f(&f, &v_points), &"Eddington_Inversion_Density_test.png", &"Density Reconstructed From Eddington Inversion", &"r (kpc)", &"rho (M_sun / kpc^3)").unwrap();
+    plot_function(&r_points, &normalization_check, (output_path.clone() + &"/Normalization.png").as_str(), &"Velocity Normalization Check", &"Normalization", &"r").unwrap();
+    plot_function(&r_points, &compute_velocity_dispersion(&v_points, &p_of_v_given_r), (output_path.clone() + &"/Eddington_Inversion_Velocity_Dispersion_test.png").as_str(), &"Velocity Dispersion Reconstructed From Eddington Inversion", &"r (kpc)", &"sigma^2 (km^2/s^2)").unwrap();
+    plot_check_function(&r_points, &rho, &recover_rho_from_f(&f, &v_points), (output_path.clone() + &"/Eddington_Inversion_Density_test.png").as_str(), &"Density Reconstructed From Eddington Inversion", &"r (kpc)", &"rho (M_sun / kpc^3)").unwrap();
     
     (r_points, p_of_r, v_points, p_of_v_given_r)
 }
@@ -433,7 +437,7 @@ fn recover_rho_from_f(f: &Vec<Vec<f64>>, v_points: &Vec<f64>) -> Vec<f64> {
     rho
 }
 
-fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T) {
+fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T, output_path: String) {
     let bin_count = (particles.len() / 1000).max(5);
     let mut rho: Vec<f64> = vec![0.0; bin_count];
     let mut v_disp: Vec<f64> = vec![0.0; bin_count];
@@ -464,16 +468,15 @@ fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T) 
         r_points
     };
     let (r_points, bin_volumes): (Vec<f64>, Vec<f64>) = {
-        let mut r_points: Vec<f64> = vec![0.0; bin_count - 1];
-        let mut bin_volumes: Vec<f64> = vec![0.0; bin_count - 1];
-        for i in 0..(bin_count - 1) {
+        let mut r_points: Vec<f64> = vec![0.0; bin_count];
+        let mut bin_volumes: Vec<f64> = vec![0.0; bin_count];
+        for i in 0..bin_count {
             r_points[i] = (bin_edges[i] * bin_edges[i+1]).sqrt(); // geometric mean for log spaced bins
             bin_volumes[i] = (4.0/3.0) * PI * (bin_edges[i+1].powi(3) - bin_edges[i].powi(3));
         }
         (r_points, bin_volumes)
     };
-
-
+    
     for p in particles.iter() {
         let r = magnitude(&p.position);
         if r > r_max || r < r_min {
@@ -496,10 +499,8 @@ fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T) 
         }
         tot += counts[i];
     }
-    dbg!(tot);
-    dbg!(tot as f64 * particles[0].mass);
 
-    plot_check_function(&r_points, rho_analytic, &rho, &"Sampler_Density_test.png", &"Sampler Density Test", &"r (kpc)", &"rho (M_sun / kpc^3)").unwrap();
-    plot_check_function(&r_points, &|r: f64| -> f64 {GG*1e8/(6.0*(1.0 + r.powi(2)).sqrt())} , &v_disp, &"Sampler_Velocity_Dispersion_test.png", &"Sampler Velocity Dispersion Test", &"r (kpc)", &"v_disp (km/s)").unwrap();
+    plot_check_function(&r_points, rho_analytic, &rho, &(output_path.clone() + &"/Sampler_Density_test.png"), &"Sampler Density Test", &"r (kpc)", &"rho (M_sun / kpc^3)").unwrap();
+    plot_function(&r_points , &v_disp, &(output_path.clone() + &"/Sampler_Velocity_Dispersion_test.png"), &"Sampler Velocity Dispersion Test", &"r (kpc)", &"v_disp (km/s)").unwrap();
 
 }

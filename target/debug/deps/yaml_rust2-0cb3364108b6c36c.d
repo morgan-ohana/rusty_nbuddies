@@ -1,0 +1,11 @@
+/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/deps/yaml_rust2-0cb3364108b6c36c.d: /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs
+
+/mnt/c/Users/unwie/OneDrive/Desktop/School/Classes/UCR/206/rusty_nbuddies/target/debug/deps/libyaml_rust2-0cb3364108b6c36c.rmeta: /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs /home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs
+
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/lib.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/char_traits.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/debug.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/emitter.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/parser.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/scanner.rs:
+/home/mohana/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/yaml-rust2-0.10.4/src/yaml.rs:
