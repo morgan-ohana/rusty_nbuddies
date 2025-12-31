@@ -1,7 +1,6 @@
 use serde::{Serialize, Deserialize};
 use std::fs::{File};
 use std::io::{BufWriter, BufReader, Write, Read};
-use std::path::Path;
 use bincode;
 use crate::particle::Particle;
 
@@ -10,7 +9,6 @@ pub struct SimulationState {
     pub time: f64,
     pub data: Vec<Particle>,
     pub step_count: usize,
-    //energy: f64,  // For conservation checking
 }
 
 pub fn save_checkpoint(state: &SimulationState, output_directory: &str, batch_num: &usize) -> anyhow::Result<()> {

@@ -4,8 +4,8 @@ use crate::forces::GG;
 use crate::init_conds::SPACIAL_GRID_NUM;
 use crate::init_conds::VELOCITY_GRID_NUM;
 
-use crate::plotting::plot_check_function;
-use crate::plotting::plot_function;
+// use crate::plotting::plot_check_function;
+// use crate::plotting::plot_function;
 
 const ENERGY_GRID_NUM: usize = 10000;
 const OFFSET: f64 = 1e-10; //for when something really just shouldn't be zero
@@ -215,32 +215,4 @@ fn differentiate(y: &Vec<f64>, x: &Vec<f64>, cuspy: &bool, forward: bool) -> Vec
         }
     }
     dy_dx
-}
-
-fn estimate_density_slope_at_large_r(rho_points: &Vec<f64>, r_points: &Vec<f64>) -> f64 {
-    // Use the last 10% of points to estimate slope
-    let start_idx = (r_points.len() as f64 * 0.9) as usize;
-    
-    let mut sum_log_r = 0.0;
-    let mut sum_log_rho = 0.0;
-    let mut sum_log_r_sq = 0.0;
-    let mut sum_log_r_log_rho = 0.0;
-    let mut count = 0.0;
-    
-    for i in start_idx..r_points.len() {
-        let log_r = r_points[i].ln();
-        let log_rho = rho_points[i].ln();
-        
-        sum_log_r += log_r;
-        sum_log_rho += log_rho;
-        sum_log_r_sq += log_r * log_r;
-        sum_log_r_log_rho += log_r * log_rho;
-        count += 1.0;
-    }
-    
-    // Slope of log(ρ) vs log(r) is -n
-    let n = -(count * sum_log_r_log_rho - sum_log_r * sum_log_rho) 
-            / (count * sum_log_r_sq - sum_log_r * sum_log_r);
-    
-    n
 }

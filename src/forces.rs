@@ -141,10 +141,10 @@ pub fn calculate_energy(data: &Vec<Particle>) -> (f64, f64) {
         kinetic += kinetic_energy(&data[i]);
 
         for j in 0..data.len() {
-            if i == j {
+            if i <= j {
                 continue;
             };
-            potential += 0.5 * potential_of_binary_config(&data[i], &data[j]);
+            potential += potential_of_binary_config(&data[i], &data[j]);
         };
     };
     (kinetic, potential)

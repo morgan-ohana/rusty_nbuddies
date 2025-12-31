@@ -491,13 +491,11 @@ fn check_output<T: Fn(f64) -> f64>(particles: &Vec<Particle>, rho_analytic: &T, 
         counts[bin_index] += 1;
     }
 
-    let mut tot = 0;
     for i in 0..rho.len() {
         if counts[i] > 0 {
             v_disp[i] /= counts[i] as f64;
             v_disp[i] /= 3.0; // 1D velocity dispersion
         }
-        tot += counts[i];
     }
 
     plot_check_function(&r_points, rho_analytic, &rho, &(output_path.clone() + &"/Sampler_Density_test.png"), &"Sampler Density Test", &"r (kpc)", &"rho (M_sun / kpc^3)").unwrap();
