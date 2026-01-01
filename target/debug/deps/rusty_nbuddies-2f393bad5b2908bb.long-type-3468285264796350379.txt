@@ -1,2 +1,0 @@
-&'b element::composable::BoxedElement<(f64, f64), plotters::prelude::BitMapBackend<'_>, plotters::element::Circle<(i32, i32), {integer}>>
-for<'b> &'b element::composable::BoxedElement<(f64, f64), plotters::prelude::BitMapBackend<'_>, plotters::element::Circle<(i32, i32), {integer}>>: PointCollection<'b, (f64, f64, f64)>

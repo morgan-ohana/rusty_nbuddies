@@ -1,1 +1,0 @@
-ChartContext<'_, plotters::prelude::BitMapBackend<'_>, Cartesian3d<RangedCoordf64, RangedCoordf64, _>>
