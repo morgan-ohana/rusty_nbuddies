@@ -84,11 +84,11 @@ fn main() {
                 let r_s = init_conds_table.get("r_s")
                         .expect("Unable to read scale radius, ensure you include r_s = {some float} in your initial conditions table")
                         .clone().into_float().expect("Scale radius must be a float!");
-                let total_mass = init_conds_table.get("total_mass")
-                        .expect("Unable to read total mass, ensure you include total_mass = {some float} in your initial conditions table")
+                let total_mass = init_conds_table.get("M")
+                        .expect("Unable to read total mass, ensure you include M = {some float} in your initial conditions table")
                         .clone().into_float().expect("Total mass must be a float!");
-                let particle_num  = init_conds_table.get("particle_num")
-                        .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
+                let particle_num  = init_conds_table.get("N")
+                        .expect("Unable to read particle number, ensure you include N = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
                 let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
@@ -108,8 +108,8 @@ fn main() {
                 let r_cutoff = init_conds_table.get("r_cutoff")
                         .expect("Unable to read cutoff radius, ensure you include r_cutoff = {some float} in your initial conditions table")
                         .clone().into_float().expect("Cutoff radius must be a float!");
-                let particle_num  = init_conds_table.get("particle_num")
-                        .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
+                let particle_num  = init_conds_table.get("N")
+                        .expect("Unable to read particle number, ensure you include N = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
                 let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
@@ -141,8 +141,8 @@ fn main() {
                     },
                     None => None
                 };
-                let particle_num  = init_conds_table.get("particle_num")
-                        .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
+                let particle_num  = init_conds_table.get("N")
+                        .expect("Unable to read particle number, ensure you include N = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
                 let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
