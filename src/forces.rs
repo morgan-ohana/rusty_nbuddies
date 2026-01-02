@@ -1,5 +1,5 @@
 use crate::particle::{GravitationalSource, Particle};
-use crate::gravitree::{Node, build_gravitree, AccuracyCriterion};
+use crate::gravitree::{Node, AccuracyCriterion};
 use crate::vectors::*;
 
 pub const GG: f64 = 4.301e-6; // Newton constant km^2 kpc / Msun s^2
@@ -21,43 +21,39 @@ impl ForceCalculationMethod {
     }
 }
 
-pub fn recalculate_dynamics_due_to_gravity(data: &mut Vec<Particle>, method: &ForceCalculationMethod) {
-    match method {
-        ForceCalculationMethod::Direct => {
-            for i in 0..data.len() {
-                // Save for use with jerk and dynamical tree criterion
-                let previous_acceleration = data[i].acceleration.clone();
-                
-                // reset acceleration, jerk, snap
-                data[i].acceleration = [0.0; 3];
-                data[i].jerk = [0.0; 3];
-                data[i].snap = [0.0; 3];
+pub fn recalculate_dynamics_due_to_gravity_directly(data: &mut Vec<Particle>) {
+    for i in 0..data.len() {
+        // Save for use with jerk and dynamical tree criterion
+        let previous_acceleration = data[i].acceleration.clone();
+        
+        // reset acceleration, jerk, snap
+        data[i].acceleration = [0.0; 3];
+        data[i].jerk = [0.0; 3];
+        data[i].snap = [0.0; 3];
 
-                // calculate dynamics via direct summation
-                for j in 0..data.len() {
-                    if i == j {
-                        continue;
-                    };
-                    let source = data[j].clone();
-                    calculate_dynamics_due_to_one_body(&mut data[i], &previous_acceleration, &source);
-                }
-            }
-        },
-        ForceCalculationMethod::Tree(criterion) => {
-            let root = Some(Box::new(build_gravitree(data.clone())));
-            for i in 0..data.len() {
-                // Save for use with jerk and dynamical tree criterion
-                let previous_acceleration = data[i].acceleration.clone();
-                
-                // reset acceleration, jerk, snap
-                data[i].acceleration = [0.0; 3];
-                data[i].jerk = [0.0; 3];
-                data[i].snap = [0.0; 3];
-                
-                // calculate dynamics via tree
-                calculate_dynamics_with_tree(&mut data[i], &previous_acceleration, &root, &criterion);
-            }
-        },
+        // calculate dynamics via direct summation
+        for j in 0..data.len() {
+            if i == j {
+                continue;
+            };
+            let source = data[j].clone();
+            calculate_dynamics_due_to_one_body(&mut data[i], &previous_acceleration, &source);
+        }
+    }
+}
+
+pub fn recalculate_dynamics_due_to_gravity_with_tree(data: &mut Vec<Particle>, criterion: &AccuracyCriterion, root: &Option<Box<Node>>) {
+    for i in 0..data.len() {
+        // Save for use with jerk and dynamical tree criterion
+        let previous_acceleration = data[i].acceleration.clone();
+        
+        // reset acceleration, jerk, snap
+        data[i].acceleration = [0.0; 3];
+        data[i].jerk = [0.0; 3];
+        data[i].snap = [0.0; 3];
+        
+        // calculate dynamics via tree
+        calculate_dynamics_with_tree(&mut data[i], &previous_acceleration, root, &criterion);
     }
 }
 
@@ -158,11 +154,20 @@ fn potential_of_binary_config(particle1: &Particle, particle2: &Particle) -> f64
     -1.0 * GG * particle1.mass * particle2.mass / magnitude(&subtract(&particle2.position, &particle1.position))
 }
 
+pub fn calculate_momentum(data: &Vec<Particle>) -> [f64; 3] {
+    let mut momentum: [f64; 3] = [0.0; 3];
+    for i in 0..data.len() {
+        momentum = add(&momentum, &scalar_multiply(&data[i].mass, &data[i].velocity))
+    }
+    momentum
+}
+
 pub fn calculate_angular_momentum(data: &Vec<Particle>) -> [f64; 3] {
     // units of energy are Msun km kpc / s
     let mut angular_momentum: [f64; 3] = [0.0, 0.0, 0.0];
     for i in 0..data.len() {
-        angular_momentum = add(&angular_momentum, &scalar_multiply(&data[i].mass, &cross_product(&data[i].position, &data[i].velocity)));
+        let momentum = scalar_multiply(&data[i].mass, &data[i].velocity);
+        angular_momentum = add(&angular_momentum, &cross_product(&data[i].position, &momentum));
     };
     angular_momentum
 }
@@ -174,6 +179,7 @@ mod tests {
     use super::*;
     use crate::time_evol::compute_timestep;
     use crate::init_conds::plummer_init_conds;
+    use crate::gravitree::build_gravitree;
 
     #[test]
     fn test_dynamics() {
@@ -239,9 +245,9 @@ mod tests {
     fn test_tree() {
         let mut particles = plummer_init_conds(1.0, 1e8, 5000, String::from("tests"));
 
-        recalculate_dynamics_due_to_gravity(&mut particles, &ForceCalculationMethod::Direct);
+        recalculate_dynamics_due_to_gravity_directly(&mut particles);
         let start = Instant::now();
-        recalculate_dynamics_due_to_gravity(&mut particles, &ForceCalculationMethod::Direct); //two calls to "warm up" higher order derivatives
+        recalculate_dynamics_due_to_gravity_directly(&mut particles); //two calls to "warm up" higher order derivatives
         let duration = start.elapsed();
         println!("Direct calculation time for 1000 particles: {:?}", duration);
 
@@ -250,7 +256,8 @@ mod tests {
         let direct_snaps: Vec<[f64; 3]> = particles.iter().map(|p| p.snap).collect();
 
         let start = Instant::now();
-        recalculate_dynamics_due_to_gravity(&mut particles, &ForceCalculationMethod::Tree(AccuracyCriterion::Geometric(0.3)));
+        let root = Some(Box::new(build_gravitree(particles.clone())));
+        recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &AccuracyCriterion::Geometric(0.3), &root);
         let duration = start.elapsed();
         println!("Geometric tree calculation time for 1000 particles: {:?}", duration);
 
@@ -259,7 +266,8 @@ mod tests {
         let geometric_tree_snaps: Vec<[f64; 3]> = particles.iter().map(|p| p.snap).collect();
 
         let start = Instant::now();
-        recalculate_dynamics_due_to_gravity(&mut particles, &ForceCalculationMethod::Tree(AccuracyCriterion::Dynamical(1e-3)));
+        let root = Some(Box::new(build_gravitree(particles.clone())));
+        recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &AccuracyCriterion::Dynamical(1e-3), &root);
         let duration = start.elapsed();
         println!("Dynamical tree calculation time for 1000 particles: {:?}", duration);
 

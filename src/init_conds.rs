@@ -358,49 +358,54 @@ fn random_unit_vector() -> [f64; 3] {
     [x, y, z]
 }
 
-pub fn binary_init_conds(seperation: f64, angular_momentum: f64, m1: f64, m2: f64) -> Vec<Particle> {
-    // 0 = p1 + p2
-    // l = p1 r1 + p2 r2 = p1 (r1 - r2) = p1 sep 
-    // v1 = l/m1 sep
-    // v2 = -l/m2 sep
-    let particle_1 = Particle {
-        mass: m1,
-        position: [0.5*seperation, 0.0, 0.0],
-        velocity: [0.0, angular_momentum / (m1 * seperation), 0.0],
-        acceleration: [0.0; 3],
-        jerk: [0.0; 3],
-        snap: [0.0; 3],
-    };
-    let particle_2 = Particle {
-        mass: m2,
-        position: [-0.5*seperation, 0.0, 0.0],
-        velocity: [0.0, - angular_momentum / (m2 * seperation), 0.0],
-        acceleration: [0.0; 3],
-        jerk: [0.0; 3],
-        snap: [0.0; 3],
-    };
-    vec![particle_1, particle_2]
-}
+pub fn binary_init_conds(m1: f64, m2: f64, min_seperation: f64, eccentricity: f64, initial_seperation: f64) -> Vec<Particle> {
+    // semi-major axis
+    let a = min_seperation / (1.0 - eccentricity);
+    
+    // Check validity
+    if initial_seperation < min_seperation {
+        panic!("Your initial seperation may not be less than your minimum seperation")
+    }
+    if a > 0.0 && initial_seperation > 2.0*a {
+        panic!("Your initial seperation exceeds the maximum seperation of your elliptical orbit")
+    }
 
-pub fn binary_circular_init_conds(seperation: f64, m1: f64, m2: f64) -> Vec<Particle> {
+    // Offset so centered on COM
     // 0 = m1*x + m2 (x - sep) = - m2 sep + (m1 + m2)x => x = m2 sep/ (m1 + m2)
-    let offset = m2 * seperation / (m1+ m2);
-    // G (m1m2/mu) / sep^2 = G (m1 + m2) / sep ^2= a = omega^2 sep => omega^2 = G mu / sep^3 => v_i = r_i omega = r_i sqrt(G (m1+ m2) / sep^3); [r_i G (m1+m2) / sep^3]) = kpc (km^2 kpc Msun / (Msun s^2 kpc^3))^1/2 = km/s
-    // [omega] = [sqrt(G (m1+ m2) / sep^3)] = [km^2 kpc Msun / Msun s^2 kpc^3]^1/2 = km / s kpc
-    let omega = (GG*(m1+m2)/(seperation*seperation*seperation)).sqrt()*0.1; //1.1 fudge factor to make it a tad elliptical
+    let offset = m2 * initial_seperation / (m1+ m2);
+    
+    // v_rel = sqrt(G (m1 + m2) (2/r - 1/a))
+    let relative_velocity = (GG * (m1 + m2) * (2.0/initial_seperation - 1.0/a)).sqrt();
+
+    // m1 v1 + m2 v2 = 0 & v1 - v2 = v_rel => m1 v1 + m2 (v1 - v_rel) = 0 => v1 = m2 v_rel / (m1 + m2)
+    // => v2 = - m1 v_rel / (m1 + m2)
+    let v1 = m2 * relative_velocity / (m1 + m2);
+    let v2 = - m1 * relative_velocity / (m1 + m2);
+    let momentum = m1 * m2 * relative_velocity / (m1 + m2);
+    
+    // In COM frame:
+    // L = r1 x p1 + r2 x p2 = r1 x p1 - r2 x p1 = (r1 - r2) x p1 = sep x p
+    // => L = min_sep * pmax
+    let vmax = (GG * (m1 + m2) * (2.0/min_seperation - 1.0/a)).sqrt();
+    let pmax = m1 * m2 * vmax / (m1 + m2);
+    let angular_momentum = min_seperation * pmax;
+
+    // => L = sep * p * sin(phi)
+    // => phi = arcsin(L/(sep*p))
+    let phi = (angular_momentum / (initial_seperation * momentum)).asin();
 
     let particle_1 = Particle {
         mass: m1,
         position: [offset, 0.0, 0.0],
-        velocity: [0.0, offset * omega, 0.0],
+        velocity: [-v1 * phi.cos(), v1 * phi.sin(), 0.0],
         acceleration: [0.0; 3],
         jerk: [0.0; 3],
         snap: [0.0; 3],
     };
     let particle_2 = Particle {
         mass: m2,
-        position: [offset - seperation, 0.0, 0.0],
-        velocity: [0.0, (offset - seperation) * omega, 0.0],
+        position: [offset - initial_seperation, 0.0, 0.0],
+        velocity: [-v2 * phi.cos(), v2 * phi.sin(), 0.0],
         acceleration: [0.0; 3],
         jerk: [0.0; 3],
         snap: [0.0; 3],

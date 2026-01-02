@@ -54,18 +54,43 @@ fn main() {
                     .expect("Unable to read file location, ensure you include location = {some string} in your initial conditions table")
                     .clone().into_string().expect("Location of initial conditions file must be a string!")
             },
+            "Binary" => {
+                let min_seperation = init_conds_table.get("r_min")
+                        .expect("Unable to read minimum seperation, ensure you include r_min = {some float} in your initial conditions table")
+                        .clone().into_float().expect("Minimum seperation must be a float!");
+                let m1 = init_conds_table.get("m1")
+                        .expect("Unable to read particle 1 mass, ensure you include m1 = {some float} in your initial conditions table")
+                        .clone().into_float().expect("Particle 1 mass must be a float!");
+                let m2 = init_conds_table.get("m2")
+                        .expect("Unable to read particle 2 mass, ensure you include m2 = {some float} in your initial conditions table")
+                        .clone().into_float().expect("Particle 2 mass must be a float!");
+                let eccentricity = match init_conds_table.get("eccentricity") {
+                    Some(eccentricity) => eccentricity.clone().into_float().expect("Eccentricity must be a float!"),
+                    None => 0.0
+                };
+                let initial_seperation = match init_conds_table.get("r_init") {
+                    Some(initial_seperation) => initial_seperation.clone().into_float().expect("Initial Seperation must be a float!"),
+                    None => min_seperation
+                };
+                let output_path = init_conds_table.get("output-directory")
+                        .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
+                        .clone().into_string().expect("Output path must be a string!");
+                let particles = binary_init_conds(m1, m2, min_seperation, eccentricity, initial_seperation);
+                let file_name = output_path.clone() + "/Binary.log";
+                save_init_conds(file_name.clone(), particles).unwrap();
+                file_name
+            }
             "Plummer" => {
                 let r_s = init_conds_table.get("r_s")
                         .expect("Unable to read scale radius, ensure you include r_s = {some float} in your initial conditions table")
                         .clone().into_float().expect("Scale radius must be a float!");
                 let total_mass = init_conds_table.get("total_mass")
                         .expect("Unable to read total mass, ensure you include total_mass = {some float} in your initial conditions table")
-                        .clone().into_float()
-                        .expect("Total mass must be a float!");
+                        .clone().into_float().expect("Total mass must be a float!");
                 let particle_num  = init_conds_table.get("particle_num")
                         .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
-                let output_path = init_conds_table.get("output_directory")
+                let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
                         .clone().into_string().expect("Output path must be a string!");
                 let particles = plummer_init_conds(r_s, total_mass, particle_num as usize, output_path.clone());
@@ -86,7 +111,7 @@ fn main() {
                 let particle_num  = init_conds_table.get("particle_num")
                         .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
-                let output_path = init_conds_table.get("output_directory")
+                let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
                         .clone().into_string().expect("Output path must be a string!");
                 let particles = nfw_init_conds(r_s, rho_s, r_cutoff, particle_num as usize, output_path.clone());
@@ -119,7 +144,7 @@ fn main() {
                 let particle_num  = init_conds_table.get("particle_num")
                         .expect("Unable to read particle number, ensure you include particle_num = {some positive int} in your initial conditions table")
                         .clone().into_uint().expect("Particle number must be a positive integer!");
-                let output_path = init_conds_table.get("output_directory")
+                let output_path = init_conds_table.get("output-directory")
                         .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
                         .clone().into_string().expect("Output path must be a string!");
                 let particles = abg_profile_init_conds(alpha, beta, gamma, r_s, rho_s, r_cutoff_option, particle_num as usize, output_path.clone());
@@ -133,7 +158,7 @@ fn main() {
         }),
         _ => None
     };
-    
+
     // Run the simulation
     if let Ok(simulation_table) = settings.get_table( "Simulation") {
         let init_conds_file = init_conds_file_option.expect("If you wish to run a simulation you must specify initial conditons. Please consult the documentation for how to correclty format the Initial-Condtions table");
@@ -184,7 +209,7 @@ fn main() {
         };
 
         let batch_duration = match simulation_table.get("batch-duration") {
-            Some(duration) => duration.clone().into_float().expect("batch duration must be a float!"),
+            Some(duration) => duration.clone().into_float().expect("batch duration must be a float!") * GYR,
             None => DEFAULT_BATCH_DURATION
         };
 
@@ -193,7 +218,7 @@ fn main() {
             None => DEFAULT_MAX_TIME
         };
 
-        let output_directory = simulation_table.get("output_directory")
+        let output_directory = simulation_table.get("output-directory")
             .expect("Ubable to read output path, ensure you include output_directory = {some string} in your simulation table")
             .clone().into_string().expect("Output path must be a string!");
 
@@ -214,10 +239,10 @@ fn main() {
 
     // Diagnostics
     if let Ok(plotting_table) = settings.get_table("Diagnostics") {
-        let data_directoy = plotting_table.get("data_directory")
+        let data_directoy = plotting_table.get("data-directory")
             .expect("Must specify data directory for diagnostics to run").clone().into_string().expect("data_directory must be a string");
 
-        let output_directoy = plotting_table.get("output_directory")
+        let output_directoy = plotting_table.get("output-directory")
             .expect("Must specify output directory for diagnostics to save plots and such too").clone().into_string().expect("output_directory must be a string");
 
         if let Some(trajectories) = plotting_table.get("trajectories") {
@@ -226,6 +251,14 @@ fn main() {
 
         if let Some(energy) = plotting_table.get("energy") {
             if energy.clone().into_bool().expect("Plotting flag 'energy' must be boolean") {plot_energy(&data_directoy.clone(), &(output_directoy.clone() + "/energy.png")).unwrap()}
+        }
+
+        if let Some(momentum) = plotting_table.get("momentum") {
+            if momentum.clone().into_bool().expect("Plotting flag 'momentum' must be boolean") {plot_momentum(&data_directoy.clone(), &(output_directoy.clone() + "/momentum.png")).unwrap()}
+        }
+
+        if let Some(angular_momentum) = plotting_table.get("angular_momentum") {
+            if angular_momentum.clone().into_bool().expect("Plotting flag 'angular_momentum' must be boolean") {plot_angular_momentum(&data_directoy.clone(), &(output_directoy.clone() + "/angular_momentum.png")).unwrap()}
         }
     }
 
