@@ -1,6 +1,5 @@
 use std::thread;
 use crossbeam::channel::{bounded};
-use std::sync::Arc;
 
 use crate::particle::Particle;
 use crate::gravitree::build_gravitree;
@@ -35,33 +34,19 @@ pub fn run_simulation(init_conds: Vec<Particle>, max_time: f64, batch_duration: 
     let mut timestep;
     let mut should_log = true;
 
-    // Create a channel for sending work to logger threads
+    // Create a channel for sending work to logger thread
     // The buffer size controls how many checkpoints can queue up
     let (tx, rx) = bounded(10); // Buffer 10 checkpoints
-
-    // Define thread pool size
-    let num_loggers = 1;
-    let output_dir_arc = Arc::new(output_directory.clone());
-    let mut logger_handles = Vec::new();
     
-    // Spawn logger threads
-    for logger_id in 0..num_loggers {
-        let rx = rx.clone(); // Each logger gets its own receiver
-        let output_dir = output_dir_arc.clone();
-        
-        logger_handles.push(thread::spawn(move || {
-            // Each logger runs this loop
-            while let Ok((sim, batch_num)) = rx.recv() {
-                println!("Logger {} saving checkpoint {}", logger_id, batch_num);
-                save_checkpoint(&sim, &output_dir, &batch_num)
-                    .unwrap_or_else(|e| eprintln!("Failed to save checkpoint {}: {}", batch_num, e));
-            }
-            println!("Logger {} shutting down", logger_id);
-        }));
-    }
-    
-    // Drop the original receiver (we're done cloning it for loggers)
-    drop(rx); // Important: This ensures loggers exit when we drop tx later
+    let logger_handle = thread::spawn(move || {
+        // logger runs this loop, note rust does not busy wait
+        while let Ok((sim, batch_num)) = rx.recv() {
+            println!("Logger saving checkpoint {}", batch_num);
+            save_checkpoint(&sim, &output_directory, &batch_num)
+                .unwrap_or_else(|e| eprintln!("Failed to save checkpoint {}: {}", batch_num, e));
+        }
+        println!("Logger shutting down");
+    });
 
     while running_time < max_time {
 
@@ -120,11 +105,10 @@ pub fn run_simulation(init_conds: Vec<Particle>, max_time: f64, batch_duration: 
         step_count: step
     };
     
-    save_checkpoint(&sim, &output_directory, &batch_num).expect(&format!("Failed to save checkpoint number {batch_num}"));
+    // final save
+    tx.send((sim, batch_num)).expect("Failed to send checkpoint to logger");
             
     // Signal logger to stop and wait for it
     drop(tx); // This will cause rx.recv() to return Err, breaking the logger loop
-    for handle in logger_handles {
-        handle.join().expect("logger thread panicked");
-    }
+    logger_handle.join().expect("logger thread panicked");
 }

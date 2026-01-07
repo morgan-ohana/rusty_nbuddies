@@ -1,6 +1,7 @@
 use crate::particle::{GravitationalSource, Particle};
 use crate::vectors::*;
 use crate::forces::{GG, KM_IN_KPC};
+use rayon::prelude::*;
 
 #[derive(Debug)]
 #[derive(Clone)]
@@ -137,10 +138,10 @@ impl Node {
                     sorted_particles[octant].push(particle);
                 }
 
-                for octant in 0..8 {
+                children.par_iter_mut().zip(sorted_particles).enumerate().for_each(|(octant, (child_opt, particles_for_octant))| {
                     // Do nothing if no particles in this octant
-                    if sorted_particles[octant].is_empty() {
-                        continue;
+                    if particles_for_octant.is_empty() {
+                        return;
                     }
 
                     // Prepare child center
@@ -155,17 +156,16 @@ impl Node {
                         geometric_center[2] + offset[2] * *size,
                     ];
 
-                    // Create leaf node if only one particle
-                    if sorted_particles[octant].len() == 1 {
-                        children[octant] = Some(Box::new(Node::new_leaf(child_center, half_size, sorted_particles[octant][0].clone())));
-                        continue;
+                    if particles_for_octant.len() == 1 {
+                        // Create leaf node if only one particle
+                        *child_opt = Some(Box::new(Node::new_leaf(child_center, half_size, particles_for_octant.into_iter().next().unwrap())));
+                    } else {
+                        // Create branch node
+                        let mut child_node = Node::new_branch(child_center, half_size);
+                        child_node.grow_tree(particles_for_octant);
+                        *child_opt = Some(Box::new(child_node));
                     }
-
-                    // Create branch node
-                    let mut child_node = Node::new_branch(child_center, half_size);
-                    child_node.grow_tree(std::mem::take(&mut sorted_particles[octant]));
-                    children[octant] = Some(Box::new(child_node));  
-                }
+                })
             }
         }
     }
@@ -174,14 +174,22 @@ impl Node {
         match self {
             Node::Leaf { .. } => return, // Leaf nodes already have mass in their particle
             Node::Branch { geometric_center: _, size: _, mass, center_of_mass, velocity_cm, acceleration_cm, children } => {
+                
+                // Parallelize work for children
+                children.par_iter_mut().for_each(|child_opt| {
+                    if let Some(child) = child_opt {
+                        child.compute_mass_distribution();
+                    }
+                });
+                
+                // Aggregate
                 let mut total_mass = 0.0;
                 let mut weighted_position = [0.0; 3];
                 let mut weighted_velocity = [0.0; 3];
                 let mut weighted_acceleration = [0.0; 3];
-
+                
                 for child_opt in children.iter_mut() {
                     if let Some(child) = child_opt {
-                        child.compute_mass_distribution();
                         let child_mass = child.get_mass();
                         total_mass += child_mass;
                         let child_com = child.get_position();

@@ -246,7 +246,7 @@ fn main() {
             .expect("Must specify output directory for diagnostics to save plots and such too").clone().into_string().expect("output_directory must be a string");
 
         if let Some(trajectories) = plotting_table.get("trajectories") {
-            if trajectories.clone().into_bool().expect("Plotting flag 'trajectories' must be boolean") {plot_trajectories(&data_directoy.clone(), &(output_directoy.clone() + "/trajectories.png")).unwrap()}
+            if trajectories.clone().into_bool().expect("Plotting flag 'trajectories' must be boolean") {plot_trajectories(&data_directoy.clone(), &(output_directoy.clone() + "/trajectories")).unwrap()}
         }
 
         if let Some(energy) = plotting_table.get("energy") {

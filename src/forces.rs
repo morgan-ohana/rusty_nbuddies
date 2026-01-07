@@ -1,3 +1,5 @@
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+
 use crate::particle::{GravitationalSource, Particle};
 use crate::gravitree::{Node, AccuracyCriterion};
 use crate::vectors::*;
@@ -43,18 +45,18 @@ pub fn recalculate_dynamics_due_to_gravity_directly(data: &mut Vec<Particle>) {
 }
 
 pub fn recalculate_dynamics_due_to_gravity_with_tree(data: &mut Vec<Particle>, criterion: &AccuracyCriterion, root: &Option<Box<Node>>) {
-    for i in 0..data.len() {
+    data.par_iter_mut().for_each(|particle| {
         // Save for use with jerk and dynamical tree criterion
-        let previous_acceleration = data[i].acceleration.clone();
+        let previous_acceleration = particle.acceleration.clone();
         
         // reset acceleration, jerk, snap
-        data[i].acceleration = [0.0; 3];
-        data[i].jerk = [0.0; 3];
-        data[i].snap = [0.0; 3];
+        particle.acceleration = [0.0; 3];
+        particle.jerk = [0.0; 3];
+        particle.snap = [0.0; 3];
         
         // calculate dynamics via tree
-        calculate_dynamics_with_tree(&mut data[i], &previous_acceleration, root, &criterion);
-    }
+        calculate_dynamics_with_tree(particle, &previous_acceleration, root, &criterion);
+    });
 }
 
 pub fn calculate_dynamics_with_tree(target: &mut Particle, previous_target_accel: &[f64; 3], node_opt: &Option<Box<Node>>, criterion: &AccuracyCriterion) {

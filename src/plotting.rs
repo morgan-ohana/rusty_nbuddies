@@ -1,18 +1,23 @@
 use plotters::prelude::*;
 use statrs::statistics::Statistics;
 use core::f64;
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
 use crate::particle::Particle;
+use crate::vectors::magnitude;
 use crate::forces::{calculate_energy, calculate_momentum, calculate_angular_momentum};
 use crate::logging::load_checkpoint;
 
 pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let scale = 4;
-    let root = BitMapBackend::new(filename, (1024*scale, 1024*scale)).into_drawing_area();
+    let binding = &(filename.to_owned() + ".png");
+    let root = BitMapBackend::new(binding, (1024*scale, 1024*scale)).into_drawing_area();
     root.fill(&WHITE)?;
     
     let mut trajectories: Vec<Vec<(f64, f64, f64)>> = Vec::new();
-    let mut bounds: (f64, f64) = (0.0, 0.0);
+    let mut bound: f64 = 0.0;
     
     let mut file_num: usize = 0;
     let mut last_data: Vec<Particle> = Vec::new();
@@ -24,6 +29,7 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
             trajectories = vec![Vec::new(); data.len()];
         }
 
+        let mut ave_dist = 0.0;
         // Add current positions to each particle's trajectory
         for (particle_idx, particle) in data.iter().enumerate() {
             trajectories[particle_idx].push((
@@ -32,20 +38,61 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
                 particle.position[2],
             ));
 
-            bounds.0 = bounds.0.min(particle.position[0]).min(particle.position[1]);
-            bounds.1 = bounds.1.max(particle.position[0]).max(particle.position[1]);
+            ave_dist += magnitude(&particle.position);
         }
+        ave_dist /= data.len() as f64;
+
+        bound = bound.max(ave_dist);
+
         
         last_data = data;
         file_num += 1;
     }
+
+    // Movie
+    let mut movie_file_path = PathBuf::from(filename);
+    let file_name = movie_file_path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "default".to_string());
+    movie_file_path.pop();
+    movie_file_path.push("movie_dump");
+    fs::create_dir_all(&movie_file_path)?;
+    movie_file_path.push(file_name);
+    let movie_file_name = movie_file_path.to_string_lossy().into_owned();
+    
+    
+    for i in 0..trajectories.len() {
+        let binding = &(movie_file_name.clone() + &format!("_{:03}.png", i));
+        let instantaneous_positions: Vec<(f64, f64, f64)> = trajectories.iter().map(|trajectory| {trajectory[i]}).collect();
+        plot_positions(&instantaneous_positions, bound, scale, binding)?
+    }
+
+    if Command::new("ffmpeg").arg("-version").output().is_err() {
+        return Err("ffmpeg is not installed or not found in PATH".into())
+    }
+
+    let movie_name = &(filename.to_owned() + ".mkv");
+
+    if Path::new(movie_name).exists() {
+        fs::remove_file(movie_name)?;
+    }
+
+    Command::new("ffmpeg")
+        .args(&[
+            "-framerate",  "12",
+            "-i", &(movie_file_name + "_%03d.png"),
+            "-q:v", "0",
+            movie_name,
+        ]).status()?;
+
+    // Static trails plot
 
     let mut chart = ChartBuilder::on(&root)
         .caption("Trajectories", ("sans-serif", 40))
         .margin(10)
         .x_label_area_size(30)
         .y_label_area_size(30)
-        .build_cartesian_3d(bounds.0..bounds.1, bounds.0..bounds.1, bounds.0..bounds.1)?;
+        .build_cartesian_3d(- bound..bound, - bound..bound, - bound..bound)?;
 
     chart.configure_axes().draw()?;
 
@@ -88,6 +135,40 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
 
     root.present()?;
     println!("Plot saved as {}", filename);
+    Ok(())
+}
+
+fn plot_positions(positions: &Vec<(f64, f64, f64)>, bound: f64, scale: u32, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let root = BitMapBackend::new(filename, (1024*scale, 1024*scale)).into_drawing_area();
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption("Trajectories", ("sans-serif", 40))
+        .margin(10)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_3d(- bound..bound, - bound..bound, - bound..bound)?;
+
+    chart.configure_axes().draw()?;
+
+    let colors = vec![&RED, &BLUE, &GREEN, &YELLOW, &CYAN, &MAGENTA];
+
+    let particle_count = positions.len();
+
+    for (particle_idx, position) in positions.iter().enumerate() {
+        let color = colors[particle_idx % colors.len()];
+        
+        chart.draw_series(PointSeries::of_element(
+            vec![*position],
+            (50 / particle_count.isqrt() as i32).max(2),
+            color.filled(),
+            &|c, s, st| {
+                return EmptyElement::at(c) + Circle::new((0, 0), s, st);
+            },
+        ))?;
+    }
+
+    root.present()?;
     Ok(())
 }
 
