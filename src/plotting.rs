@@ -47,7 +47,6 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
 
         bound = bound.max(ave_dist);
 
-        
         last_data = data;
         file_num += 1;
     }
@@ -63,7 +62,7 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
     movie_file_path.push(file_name);
     let movie_file_name = movie_file_path.to_string_lossy().into_owned();
     
-    for i in 0..trajectories.len() {
+    for i in 0..trajectories[0].len() {
         let binding = &(movie_file_name.clone() + &format!("_{:03}.png", i));
         let instantaneous_positions: Vec<(f64, f64, f64)> = trajectories.iter().map(|trajectory| {trajectory[i]}).collect();
         plot_positions(&instantaneous_positions, bound, scale, binding, time[i])?
