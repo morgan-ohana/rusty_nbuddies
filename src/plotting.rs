@@ -17,13 +17,16 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
     root.fill(&WHITE)?;
     
     let mut trajectories: Vec<Vec<(f64, f64, f64)>> = Vec::new();
+    let mut time: Vec<f64> = Vec::new();
     let mut bound: f64 = 0.0;
     
     let mut file_num: usize = 0;
     let mut last_data: Vec<Particle> = Vec::new();
 
     while Path::new(&format!("{}/snapshot_{:03}.log", data_directory, file_num)).exists() {
-        let data = load_checkpoint(data_directory, &file_num)?.data;
+        let state = load_checkpoint(data_directory, &file_num)?;
+        let data = state.data;
+        time.push(state.time);
 
         if trajectories.is_empty() {
             trajectories = vec![Vec::new(); data.len()];
@@ -60,11 +63,10 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
     movie_file_path.push(file_name);
     let movie_file_name = movie_file_path.to_string_lossy().into_owned();
     
-    
     for i in 0..trajectories.len() {
         let binding = &(movie_file_name.clone() + &format!("_{:03}.png", i));
         let instantaneous_positions: Vec<(f64, f64, f64)> = trajectories.iter().map(|trajectory| {trajectory[i]}).collect();
-        plot_positions(&instantaneous_positions, bound, scale, binding)?
+        plot_positions(&instantaneous_positions, bound, scale, binding, time[i])?
     }
 
     if Command::new("ffmpeg").arg("-version").output().is_err() {
@@ -138,12 +140,12 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
     Ok(())
 }
 
-fn plot_positions(positions: &Vec<(f64, f64, f64)>, bound: f64, scale: u32, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn plot_positions(positions: &Vec<(f64, f64, f64)>, bound: f64, scale: u32, filename: &str, time: f64) -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new(filename, (1024*scale, 1024*scale)).into_drawing_area();
     root.fill(&WHITE)?;
 
     let mut chart = ChartBuilder::on(&root)
-        .caption("Trajectories", ("sans-serif", 40))
+        .caption(format!("Trajectories t={:03}", time), ("sans-serif", 40))
         .margin(10)
         .x_label_area_size(30)
         .y_label_area_size(30)
