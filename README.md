@@ -10,6 +10,17 @@ The initial conditions table must contain a **type** key which matches one of th
 
 This is the simplest type and used for simply directing the code to load an existing initial conditions file. In this case the only other entry you'll need in your initial conditions table is `location = path/to/file`
 
+### type = "Combine"
+
+This mode allows you to combine many "ingredient" files, which can be initial conditions previously generated or snapshots from simulations into one initial condition. Along with the path to each ingredient you must specify a position offset and velocity offset for each.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| output-directory | N/A | where to write initial conditions file to |
+| ingredients | N/A | list of file paths to ingredients |
+| offsets | [[0,0,0], [0,0,0], ...] | positions space offsets |
+| velocity-offsets | [[0,0,0], [0,0,0], ...] | velocity space offsets |
+
 ### type = "Binary"
 
 This creates a binary initial condition, the required additional keys in your table are then as follows. If the default value is listed as N/A the value must be specified by the user

@@ -54,6 +54,65 @@ fn main() {
                     .expect("Unable to read file location, ensure you include location = {some string} in your initial conditions table")
                     .clone().into_string().expect("Location of initial conditions file must be a string!")
             },
+            "Combine" => {
+                let ingredients = {
+                    let value_vec: Vec<config::Value> = init_conds_table.get("ingredients")
+                        .expect("Unable to read ingredients, ensure you include ingredients = [{paths}, {to}, {ingredients}] in your initial conditions table")
+                        .clone().into_array().expect("Ingredients must be an array!");
+                    let mut string_vec: Vec<String> = Vec::new();
+                    for value in value_vec {
+                        string_vec.push(value.into_string().expect("Ingredient filepaths must be strings!"))
+                    }
+                    string_vec
+                };
+                let offsets = {
+                    let offsets_opt = init_conds_table.get("offsets");
+                    match offsets_opt {
+                        Some(offsets_val) => {
+                            let value_vec: Vec<config::Value> = offsets_val.clone().into_array().expect("Offsets must be an array!");
+                            let mut num_arr_vec: Vec<[f64; 3]> = Vec::new();
+                            for n in 0..value_vec.len() {
+                                let value_arr = value_vec[n].clone().into_array().expect("Offsets must be arrays!").first_chunk::<3>().unwrap().clone();
+                                let mut arr = [0.0; 3];
+                                for i in 0..value_arr.len() {
+                                    arr[i] = value_arr[i].clone().into_float().expect("Offset components must be floats!")
+                                }
+                                num_arr_vec.push(arr);
+                            }
+                            num_arr_vec
+                        },
+                        None => vec![[0.0; 3]; ingredients.len()]
+                    }
+                    
+                };
+                let velocity_offsets = {
+                    let velocity_offsets_opt = init_conds_table.get("velocity-offsets");
+                    match velocity_offsets_opt {
+                        Some(velocity_offsets) => {
+                            let value_vec: Vec<config::Value> = velocity_offsets.clone().into_array().expect("Velocity offsets must be an array!");
+                            let mut num_arr_vec: Vec<[f64; 3]> = Vec::new();
+                            for n in 0..value_vec.len() {
+                                let value_arr = value_vec[n].clone().into_array().expect("Velocity offsets must be arrays!").first_chunk::<3>().unwrap().clone();
+                                let mut arr = [0.0; 3];
+                                for i in 0..value_arr.len() {
+                                    arr[i] = value_arr[i].clone().into_float().expect("Velocity offset components must be floats!")
+                                }
+                                num_arr_vec.push(arr);
+                            }
+                            num_arr_vec
+                        },
+                        None => vec![[0.0; 3]; ingredients.len()]
+                    }
+                    
+                };
+                let particles = combine(ingredients, offsets, velocity_offsets);
+                let output_path = init_conds_table.get("output-directory")
+                        .expect("Ubable to read output path, ensure you include output_directory = {some string} in your inital conditions table")
+                        .clone().into_string().expect("Output path must be a string!");
+                let file_name = output_path.clone() + "/Combination.log";
+                save_init_conds(file_name.clone(), particles).unwrap();
+                file_name
+            },
             "Binary" => {
                 let min_seperation = init_conds_table.get("r_min")
                         .expect("Unable to read minimum seperation, ensure you include r_min = {some float} in your initial conditions table")

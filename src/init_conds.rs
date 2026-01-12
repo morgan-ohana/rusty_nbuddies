@@ -8,10 +8,34 @@ use crate::eddington_inverter::*;
 use crate::plotting::plot_check_function;
 use crate::plotting::plot_function;
 use crate::vectors::*;
+use crate::logging::load_file;
 
 pub const SPACIAL_GRID_NUM: usize = 10000;
 pub const VELOCITY_GRID_NUM: usize = 10000;
 const MASS_ERROR_TOLERANCE: f64 = 0.001;
+
+pub fn combine(file_paths: Vec<String>, offsets: Vec<[f64; 3]>, velocity_offsets: Vec<[f64; 3]>) -> Vec<Particle> {
+    if file_paths.len() != offsets.len() {
+        panic!("The number of constituent simulations ({}) must match the number of offsets ({})", file_paths.len(), offsets.len())
+    }
+
+    if file_paths.len() != velocity_offsets.len() {
+        panic!("The number of constituent simulations ({}) must match the number of velocity offsets ({})", file_paths.len(), velocity_offsets.len())
+    }
+
+    let mut combo_data: Vec<Particle> = Vec::new();
+
+    for n in 0..file_paths.len() {
+        let mut ingredient = load_file(file_paths[n].clone()).unwrap().data;
+        for i in 0..ingredient.len() {
+            ingredient[i].position = add(&ingredient[i].position, &offsets[n]);
+            ingredient[i].velocity = add(&ingredient[i].velocity, &velocity_offsets[n]);
+        }
+        combo_data.append(&mut ingredient);
+    }
+
+    combo_data
+}
 
 pub fn abg_profile_init_conds(alpha: f64, beta: f64, gamma: f64, r_s: f64, rho_s: f64, r_cutoff_option: Option<f64>, particle_num: usize, output_path: String) -> Vec<Particle> {
 

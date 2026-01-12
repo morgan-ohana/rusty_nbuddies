@@ -58,9 +58,13 @@ pub fn plot_trajectories(data_directory: &str, filename: &str) -> Result<(), Box
         .unwrap_or_else(|| "default".to_string());
     movie_file_path.pop();
     movie_file_path.push("movie_dump");
+    if Path::new(&movie_file_path).exists() {
+        fs::remove_dir_all(&movie_file_path)?;
+    }
     fs::create_dir_all(&movie_file_path)?;
     movie_file_path.push(file_name);
     let movie_file_name = movie_file_path.to_string_lossy().into_owned();
+
     
     for i in 0..trajectories[0].len() {
         let binding = &(movie_file_name.clone() + &format!("_{:03}.png", i));
