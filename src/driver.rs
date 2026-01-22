@@ -21,9 +21,9 @@ pub fn run_simulation(init_conds: Vec<Particle>, max_time: f64, batch_duration: 
             recalculate_dynamics_due_to_gravity_directly(&mut particles);
         },
         ForceCalculationMethod::Tree(ref criterion) => {
-            let root = Some(Box::new(build_gravitree(particles.clone())));
+            let root = Box::new(build_gravitree(particles.clone()));
             recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &criterion, &root);
-            let root = Some(Box::new(build_gravitree(particles.clone())));
+            let root = Box::new(build_gravitree(particles.clone()));
             recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &criterion, &root);
         }
     }
@@ -86,7 +86,7 @@ pub fn run_simulation(init_conds: Vec<Particle>, max_time: f64, batch_duration: 
         match method {
             ForceCalculationMethod::Direct => recalculate_dynamics_due_to_gravity_directly(&mut particles),
             ForceCalculationMethod::Tree(ref criterion) => {
-                let root = Some(Box::new(build_gravitree(particles.clone())));
+                let root = Box::new(build_gravitree(particles.clone()));
                 recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &criterion, &root);
             }
         }

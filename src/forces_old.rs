@@ -44,7 +44,7 @@ pub fn recalculate_dynamics_due_to_gravity_directly(data: &mut Vec<Particle>) {
     }
 }
 
-pub fn recalculate_dynamics_due_to_gravity_with_tree(data: &mut Vec<Particle>, criterion: &AccuracyCriterion, root: &Box<Node>) {
+pub fn recalculate_dynamics_due_to_gravity_with_tree(data: &mut Vec<Particle>, criterion: &AccuracyCriterion, root: &Option<Box<Node>>) {
     data.par_iter_mut().for_each(|particle| {
         // Save for use with jerk and dynamical tree criterion
         let previous_acceleration = particle.acceleration.clone();
@@ -59,21 +59,23 @@ pub fn recalculate_dynamics_due_to_gravity_with_tree(data: &mut Vec<Particle>, c
     });
 }
 
-pub fn calculate_dynamics_with_tree(target: &mut Particle, previous_target_accel: &[f64; 3], node: &Box<Node>, criterion: &AccuracyCriterion) {
-    match &**node {
-        Node::Leaf { particle } => {
-            if node.contains(target) {
-                return;
-            }
-        
-            calculate_dynamics_due_to_one_body(target, &previous_target_accel, particle);
-        },
-        Node::Branch { children, .. } => {
-            if node.is_approximatable(target, previous_target_accel, criterion) && !node.contains(&target) {
-                calculate_dynamics_due_to_one_body(target, &previous_target_accel, &**node);
-            } else {
-                for child in children.iter() {
-                    calculate_dynamics_with_tree(target, previous_target_accel, child, criterion);
+pub fn calculate_dynamics_with_tree(target: &mut Particle, previous_target_accel: &[f64; 3], node_opt: &Option<Box<Node>>, criterion: &AccuracyCriterion) {
+    if let Some(node) = node_opt {
+        match &**node {
+            Node::Leaf { particle } => {
+                if node.contains(target) {
+                    return;
+                }
+            
+                calculate_dynamics_due_to_one_body(target, &previous_target_accel, particle);
+            },
+            Node::Branch { children, .. } => {
+                if node.is_approximatable(target, previous_target_accel, criterion) && !node.contains(&target) {
+                    calculate_dynamics_due_to_one_body(target, &previous_target_accel, &**node);
+                } else {
+                    for child_opt in children.iter() {
+                        calculate_dynamics_with_tree(target, previous_target_accel, child_opt, criterion);
+                    }
                 }
             }
         }
@@ -243,33 +245,33 @@ mod tests {
 
     #[test]
     fn test_tree() {
-        let mut particles = plummer_init_conds(1.0, 1e8, 100, String::from("tests"));
+        let mut particles = plummer_init_conds(1.0, 1e8, 5000, String::from("tests"));
 
         recalculate_dynamics_due_to_gravity_directly(&mut particles);
         let start = Instant::now();
         recalculate_dynamics_due_to_gravity_directly(&mut particles); //two calls to "warm up" higher order derivatives
         let duration = start.elapsed();
-        println!("Direct calculation time for {} particles: {:?}", particles.len(), duration);
+        println!("Direct calculation time for 1000 particles: {:?}", duration);
 
         let direct_accels: Vec<[f64; 3]> = particles.iter().map(|p| p.acceleration).collect();
         let direct_jerks: Vec<[f64; 3]> = particles.iter().map(|p| p.jerk).collect();
         let direct_snaps: Vec<[f64; 3]> = particles.iter().map(|p| p.snap).collect();
 
         let start = Instant::now();
-        let root = Box::new(build_gravitree(particles.clone()));
+        let root = Some(Box::new(build_gravitree(particles.clone())));
         recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &AccuracyCriterion::Geometric(0.3), &root);
         let duration = start.elapsed();
-        println!("Geometric tree calculation time for {} particles: {:?}", particles.len(), duration);
+        println!("Geometric tree calculation time for 1000 particles: {:?}", duration);
 
         let geometric_tree_accels: Vec<[f64; 3]> = particles.iter().map(|p| p.acceleration).collect();
         let geometric_tree_jerks: Vec<[f64; 3]> = particles.iter().map(|p| p.jerk).collect();
         let geometric_tree_snaps: Vec<[f64; 3]> = particles.iter().map(|p| p.snap).collect();
 
         let start = Instant::now();
-        let root = Box::new(build_gravitree(particles.clone()));
+        let root = Some(Box::new(build_gravitree(particles.clone())));
         recalculate_dynamics_due_to_gravity_with_tree(&mut particles, &AccuracyCriterion::Dynamical(1e-3), &root);
         let duration = start.elapsed();
-        println!("Dynamical tree calculation time for {} particles: {:?}", particles.len(), duration);
+        println!("Dynamical tree calculation time for 1000 particles: {:?}", duration);
 
         let dynamical_tree_accels: Vec<[f64; 3]> = particles.iter().map(|p| p.acceleration).collect();
         let dynamical_tree_jerks: Vec<[f64; 3]> = particles.iter().map(|p| p.jerk).collect();

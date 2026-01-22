@@ -1,4 +1,6 @@
-use crate::particle::{GravitationalSource, Particle};
+use std::arch::x86_64::_mm_div_round_ss;
+
+use crate::particle::{self, GravitationalSource, Particle};
 use crate::vectors::*;
 use crate::forces::{GG, KM_IN_KPC};
 use rayon::prelude::*;
@@ -19,19 +21,17 @@ impl AccuracyCriterion {
     }
 }
 
+#[derive(Clone)]
 pub enum Node {
     Branch {
-        geometric_center: [f64; 3],
-        size: f64,
-        children: [Option<Box<Node>>; 8],
+        bounds: Option<[[f64; 2]; 3]>,
+        children: [Box<Node>; 2],
         mass: f64,
         center_of_mass: [f64; 3],
         velocity_cm: [f64; 3],
         acceleration_cm: [f64; 3],
     },
     Leaf {
-        geometric_center: [f64; 3],
-        size: f64,
         particle: Particle,
     },
 }
@@ -64,122 +64,100 @@ impl GravitationalSource for Node {
 }
 
 impl Node {
-    fn new_branch(geometric_center: [f64; 3], size: f64) -> Self {
+
+    fn new_branch(children: [Box<Node>; 2]) -> Self {
         Node::Branch {
-            geometric_center,
-            size,
+            bounds: None,
             mass: 0.0,
             center_of_mass: [0.0; 3],
             velocity_cm: [0.0; 3],
             acceleration_cm: [0.0; 3],
-            children: [None, None, None, None, None, None, None, None],
+            children,
         }
     }
 
-    fn new_leaf(geometric_center: [f64; 3], size: f64, particle: Particle) -> Self {
+    fn set_children(&mut self, new_children: [Box<Node>; 2]) {
+        match self {
+            Node::Branch { children, .. } => *children = new_children,
+            Node::Leaf { .. } => panic!("Leaves cannot have children!")
+        }
+    }
+
+    fn new_leaf(particle: Particle) -> Self {
         Node::Leaf {
-            geometric_center,
-            size,
-            particle,
+            particle
+        }
+    }
+
+    fn get_bounds(&self) -> [[f64; 2]; 3] {
+        match self {
+            Node::Leaf { particle } => [
+                [particle.position[0], particle.position[0]],
+                [particle.position[1], particle.position[1]],
+                [particle.position[2], particle.position[2]]
+            ],
+            Node::Branch { bounds, .. } => bounds.expect("Node::get_bounds should not be called before bounds are initialized!")
         }
     }
 
     pub fn contains(&self, target: &Particle) -> bool {
         match self {
-            Node::Branch { geometric_center, size, .. } | Node::Leaf { geometric_center, size, .. } => {
-                for i in 0..3 {
-                    if (target.position[i] < geometric_center[i] - size / 2.0) || (target.position[i] > geometric_center[i] + size / 2.0) {
-                        return false;
+            Node::Leaf { particle } => target == particle,
+            Node::Branch { bounds, ..} => {
+                match bounds {
+                    None => panic!("Contains check being run on node without initialized bounds"),
+                    Some(bounds) => {
+                        for i in 0..3 {
+                            if target.position[i] < bounds[i][0] || target.position[i] > bounds[i][1] {
+                                return false
+                            }
+                        }
+                        return true
                     }
                 }
-                true
             }
         }
     }
 
     pub fn is_approximatable(&self, target: &Particle, previous_target_accel: &[f64; 3], criterion: &AccuracyCriterion) -> bool {
-        let distance = {
-            let node_pos = self.get_position();
-            let mut dist = 0.0;
-            for i in 0..3 {
-                dist += (node_pos[i] - target.position[i]).powi(2);
-            }
-            dist.sqrt()
-        };
-        let size = match self {
-            Node::Branch { size, .. } | Node::Leaf { size, .. } => *size,
-        };
-        match criterion {
-            AccuracyCriterion::Geometric(theta) => {
-                (size / distance) < *theta
-            },
-            AccuracyCriterion::Dynamical(alpha) => {
-                GG * self.get_mass() * size.powi(2) / distance.powi(4) < alpha * magnitude(previous_target_accel) * KM_IN_KPC
-            },
-        }
-    }
-
-    fn grow_tree(&mut self, particles: Vec<Particle>) {
         match self {
-            Node::Leaf { .. } => return, // Leaf nodes do not need to build further
-            Node::Branch { geometric_center, size, children, ..} => {            
-                // Pre-allocate children
-                let mut sorted_particles: [Vec<Particle>; 8] = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
-                let half_size = *size / 2.0;
-                
-                for particle in particles {
-                    let mut octant = 0;
+            Node::Leaf {..} => true,
+            Node::Branch {bounds, .. } => {
+                let distance = {
+                    let node_pos = self.get_position();
+                    let mut dist = 0.0;
                     for i in 0..3 {
-                        if particle.position[i] >= geometric_center[i] {
-                            octant |= 1 << i;
-                        }
+                        dist += (node_pos[i] - target.position[i]).powi(2);
                     }
-            
-                    sorted_particles[octant].push(particle);
+                    dist.sqrt()
+                };
+
+                //worst case
+                let bounds = bounds.expect("Tree is being used for force calculation before it is fully initialized!");
+                let size = (bounds[0][1] - bounds[0][0]).min(bounds[1][1] - bounds[1][0]).min(bounds[2][1] - bounds[2][0]);
+
+                match criterion {
+                    AccuracyCriterion::Geometric(theta) => {
+                        (size / distance) < *theta
+                    },
+                    AccuracyCriterion::Dynamical(alpha) => {
+                        GG * self.get_mass() * size.powi(2) / distance.powi(4) < alpha * magnitude(previous_target_accel) * KM_IN_KPC
+                    },
                 }
-
-                children.par_iter_mut().zip(sorted_particles).enumerate().for_each(|(octant, (child_opt, particles_for_octant))| {
-                    // Do nothing if no particles in this octant
-                    if particles_for_octant.is_empty() {
-                        return;
-                    }
-
-                    // Prepare child center
-                    let offset = [
-                        if (octant & 1) == 0 { -0.25 } else { 0.25 },
-                        if (octant & 2) == 0 { -0.25 } else { 0.25 },
-                        if (octant & 4) == 0 { -0.25 } else { 0.25 },
-                    ];
-                    let child_center = [
-                        geometric_center[0] + offset[0] * *size,
-                        geometric_center[1] + offset[1] * *size,
-                        geometric_center[2] + offset[2] * *size,
-                    ];
-
-                    if particles_for_octant.len() == 1 {
-                        // Create leaf node if only one particle
-                        *child_opt = Some(Box::new(Node::new_leaf(child_center, half_size, particles_for_octant.into_iter().next().unwrap())));
-                    } else {
-                        // Create branch node
-                        let mut child_node = Node::new_branch(child_center, half_size);
-                        child_node.grow_tree(particles_for_octant);
-                        *child_opt = Some(Box::new(child_node));
-                    }
-                })
             }
         }
+        
+        
     }
 
-    fn compute_mass_distribution(&mut self) {
+    fn compute_physical_parameters(&mut self) {
         match self {
             Node::Leaf { .. } => return, // Leaf nodes already have mass in their particle
-            Node::Branch { geometric_center: _, size: _, mass, center_of_mass, velocity_cm, acceleration_cm, children } => {
+            Node::Branch { bounds, mass, center_of_mass, velocity_cm, acceleration_cm, children, .. } => {
                 
                 // Parallelize work for children
-                children.par_iter_mut().for_each(|child_opt| {
-                    if let Some(child) = child_opt {
-                        child.compute_mass_distribution();
-                    }
+                children.par_iter_mut().for_each(|child| {
+                    child.compute_physical_parameters();
                 });
                 
                 // Aggregate
@@ -188,23 +166,27 @@ impl Node {
                 let mut weighted_velocity = [0.0; 3];
                 let mut weighted_acceleration = [0.0; 3];
                 
-                for child_opt in children.iter_mut() {
-                    if let Some(child) = child_opt {
-                        let child_mass = child.get_mass();
-                        total_mass += child_mass;
-                        let child_com = child.get_position();
-                        let child_vel_cm = child.get_velocity();
-                        let child_accel_cm = child.get_acceleration();
+                for child in children.iter_mut() {
+                    let child_mass = child.get_mass();
+                    total_mass += child_mass;
+                    let child_com = child.get_position();
+                    let child_vel_cm = child.get_velocity();
+                    let child_accel_cm = child.get_acceleration();
 
-                        for i in 0..3 {
-                            weighted_position[i] += child_com[i] * child_mass;
-                            weighted_velocity[i] += child_vel_cm[i] * child_mass;
-                            weighted_acceleration[i] += child_accel_cm[i] * child_mass;
-                        }
+                    for i in 0..3 {
+                        weighted_position[i] += child_com[i] * child_mass;
+                        weighted_velocity[i] += child_vel_cm[i] * child_mass;
+                        weighted_acceleration[i] += child_accel_cm[i] * child_mass;
                     }
                 }
 
+                // set parameters
                 *mass = total_mass;
+                *bounds = Some([
+                    [children[0].get_bounds()[0][0].min(children[1].get_bounds()[0][0]), children[0].get_bounds()[0][1].max(children[1].get_bounds()[0][1])],
+                    [children[0].get_bounds()[1][0].min(children[1].get_bounds()[1][0]), children[0].get_bounds()[1][1].max(children[1].get_bounds()[1][1])],
+                    [children[0].get_bounds()[2][0].min(children[1].get_bounds()[2][0]), children[0].get_bounds()[2][1].max(children[1].get_bounds()[2][1])]
+                ]);
                 if total_mass > 0.0 {
                     for i in 0..3 {
                         center_of_mass[i] = weighted_position[i] / total_mass;
@@ -217,30 +199,236 @@ impl Node {
     }
 }
 
+//https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/
 pub fn build_gravitree(particles: Vec<Particle>) -> Node {
-    if particles.is_empty() {
-        panic!("Cannot build gravitree with no particles");
+    let (mut leaves, codes) = generate_leaves(particles);
+    let n = leaves.len();
+    for i in 0..codes.len() {
+        println!("{:#b}", codes[i])
+    }
+
+    let branch_structure: Vec<(usize, usize, usize, usize)> = (0..n - 1)
+        .into_par_iter().map(|idx| {
+            let (first, last) = determine_range(&codes, idx);
+            let split = find_split(&codes, (first, last));
+            (idx, first, last, split)
+        }).collect();
+
+    let mut branches: Vec<Option<Node>> = vec![None; n - 1];
+    for &(idx, first, last, split) in branch_structure.iter().rev() {
+        
+        let left_child = match split == first {
+            true => leaves[split].take().unwrap(),
+            false => branches[split].take().unwrap()
+        };
+
+        let right_child = match split + 1 == last {
+            true => leaves[split + 1].take().unwrap(),
+            false => branches[split + 1].take().unwrap()
+        };
+
+        branches[idx] = Some(Node::new_branch([Box::new(left_child), Box::new(right_child)]));
+    }
+
+    let mut root = branches[0].take().unwrap();
+
+    root.compute_physical_parameters();
+
+    root
+}
+
+//https://developer.nvidia.com/blog/parallelforall/wp-content/uploads/2012/11/karras2012hpg_paper.pdf
+fn determine_range(codes: &Vec<u32>, idx: usize) -> (usize, usize) {
+    if idx == 0 {
+        return (0, codes.len() - 1)
     }
     
-    let mut root_center: [f64; 3] = [0.0, 0.0, 0.0];
-    let mut root_size: f64 = 0.0;
-    for particle in &particles {
-        for i in 0..3 {
-            root_center[i] += particle.position[i];
-        }
-    }
-    for i in 0..3 {
-        root_center[i] /= particles.len() as f64;
-    }
-    for particle in &particles {
-        for i in 0..3 {
-            root_size = root_size.max((particle.position[i] - root_center[i]).abs() * 2.0);
-        }
-    }
-    root_size *= 1.1; // Slightly enlarge to avoid issues with particles exactly on boundary
+    // determine direction or range
+    let d = ((codes[idx] ^ codes[idx + 1]).leading_zeros() as isize - (codes[idx] ^ codes[idx - 1]).leading_zeros() as isize).signum();
 
-    let mut root = Node::new_branch(root_center, root_size);
-    root.grow_tree(particles);
-    root.compute_mass_distribution();
-    root
+    let min_prefix = (codes[idx] ^ codes[(idx as isize - d) as usize]).leading_zeros();
+
+    let mut high = match d {
+        1 => codes.len() - idx,
+        -1 => idx + 1,
+        _ => panic!("Direction indicator not 1 or -1. Something wrong with milton codes")
+    };
+    let mut low = 0;
+
+    while high - low > 1 {
+        let mid = (high + low) / 2;
+
+        let mid_prefix = (codes[idx] ^ codes[(idx as isize + (mid as isize)*d) as usize]).leading_zeros();
+
+        if mid_prefix > min_prefix {
+            low = mid
+        } else {
+            high = mid
+        }
+    }
+
+    match d {
+        1 => (idx, idx + low * (d as usize)),
+        -1 => ((idx as isize + (low as isize) * d) as usize, idx),
+        _ => panic!("Direction indicator not 1 or -1. Something wrong with morton codes")
+    }
+}
+
+fn find_split(codes: &Vec<u32>, idx_range: (usize, usize)) -> usize {
+    let last = idx_range.1;
+    let first = idx_range.0;
+
+
+    //for identical morton codes split in middle
+    if codes[first] == codes[last] {
+        return (first + last) / 2;
+    }
+
+    let common_prefix = (codes[first] ^ codes[last]).leading_zeros();
+
+    let mut high = last;
+    let mut low = first;
+    while high - low > 1 {
+        let mid = (high + low) / 2;
+
+        let mid_prefix = (codes[first] ^ codes[mid]).leading_zeros();
+
+        if mid_prefix > common_prefix {
+            low = mid
+        } else {
+            high = mid
+        }
+    }
+
+    low
+}
+
+fn generate_leaves(particles: Vec<Particle>) -> (Vec<Option<Node>>, Vec<u32>) {
+    let bounds = get_bounds(&particles);
+
+    // Generate morton codes
+    let mut particle_info: Vec<(Particle, u32)> = particles.into_par_iter().map(|particle| {
+        let normalized_position = normalize_coordinates(particle.position, bounds);
+        let morton_code = morton_from_normalized(normalized_position);
+
+        (particle, morton_code)
+    }).collect();
+
+    // Sort by morton codes
+    particle_info.par_sort_by_key(|&(_, code)| code);
+
+    // create leaves
+    let (leaves, codes): (Vec<Option<Node>>, Vec<u32>) = particle_info.into_par_iter().map(|(particle, morton_code)| {
+        (Some(Node::new_leaf(particle)), morton_code)
+    }).collect();
+
+    (leaves, codes)
+}
+
+fn get_bounds(particles: &Vec<Particle>) -> [[f64; 2]; 3] {
+    let bounds = particles.par_chunks(1024).map(|chunk| {
+        let first = &chunk[0];
+        let mut local_bounds = [
+            [first.position[0], first.position[0]],
+            [first.position[1], first.position[1]],
+            [first.position[2], first.position[2]]
+        ];
+
+        for particle in chunk.iter().skip(1) {
+            local_bounds = [
+                [local_bounds[0][0].min(particle.position[0]), local_bounds[0][1].max(particle.position[0])],
+                [local_bounds[1][0].min(particle.position[1]), local_bounds[1][1].max(particle.position[1])],
+                [local_bounds[2][0].min(particle.position[2]), local_bounds[2][1].max(particle.position[2])]
+            ];
+        }
+
+        local_bounds
+    }).reduce(
+        || {
+            [
+                [f64::INFINITY, f64::NEG_INFINITY],
+                [f64::INFINITY, f64::NEG_INFINITY],
+                [f64::INFINITY, f64::NEG_INFINITY]
+            ]
+        },
+        |bounds_a, bounds_b| {
+            [
+                [bounds_a[0][0].min(bounds_b[0][0]), bounds_a[0][1].max(bounds_b[0][1])],
+                [bounds_a[1][0].min(bounds_b[1][0]), bounds_a[1][1].max(bounds_b[1][1])],
+                [bounds_a[2][0].min(bounds_b[2][0]), bounds_a[2][1].max(bounds_b[2][1])]
+            ]
+        }
+    );
+
+    bounds
+}
+
+fn expand_bits(v: u32) -> u32 {
+    // Spread bits to every 3rd position (inserting two zeros)
+    // For 10 bits: 0-9 -> positions 0,3,6,...,27
+    let mut x = v as u64;
+    x = (x | (x << 16)) & 0x030000FF;
+    x = (x | (x << 8)) & 0x0300F00F;
+    x = (x | (x << 4)) & 0x030C30C3;
+    x = (x | (x << 2)) & 0x09249249;
+    x as u32
+}
+
+
+// Calculates a 30-bit Morton code for the given 3D point located within the unit cube [0,1].
+fn morton_from_normalized(coords: [f64; 3]) -> u32 {
+    // Clamp and scale to [0, 1023]
+    let xx = expand_bits((coords[0] * 1024.0).clamp(0.0, 1023.0) as u32);
+    let yy = expand_bits((coords[1] * 1024.0).clamp(0.0, 1023.0) as u32);
+    let zz = expand_bits((coords[2] * 1024.0).clamp(0.0, 1023.0) as u32);
+    
+    // Interleave bits: xx * 4 + yy * 2 + zz
+    (xx << 2) + (yy << 1) + zz
+}
+
+fn normalize_coordinates(coords: [f64; 3], bounds: [[f64; 2]; 3]) -> [f64;3] {
+    let mut normalized = [0.0; 3];
+    for i in 0..3 {
+        normalized[i] = (coords[i] - bounds[i][0]) / (bounds[i][1] - bounds[i][0])
+    }
+    normalized
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_tree_building() {
+        let codes = vec![0b00001, 0b00010, 0b00100, 0b00101, 0b10011, 0b11000, 0b11001, 0b11110];
+
+        let branch_structure: Vec<(usize, usize, usize, usize)> = (0..codes.len() - 1)
+        .into_iter().map(|idx| {
+            let (first, last) = determine_range(&codes, idx);
+            let split = find_split(&codes, (first, last));
+            (idx, first, last, split)
+        }).collect();
+        
+        let branch_stucture_from_paper = [
+            (0,0,7,3),
+            (1,0,1,0),
+            (2,2,3,2),
+            (3,0,3,1),
+            (4,4,7,4),
+            (5,5,7,6),
+            (6,5,6,5)
+        ];
+
+        let mut error = 0;
+        for i in 0..8 {
+            error += (branch_structure[i].0 as isize - branch_stucture_from_paper[i].0 as isize).abs();
+            error += (branch_structure[i].1 as isize - branch_stucture_from_paper[i].1 as isize).abs();
+            error += (branch_structure[i].2 as isize - branch_stucture_from_paper[i].2 as isize).abs();
+            error += (branch_structure[i].3 as isize - branch_stucture_from_paper[i].3 as isize).abs();
+        }
+
+        if error != 0 {
+            panic!("Something wrong in tree building, likely range finding or split finding")
+        }
+    }
 }
