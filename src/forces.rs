@@ -80,7 +80,7 @@ pub fn calculate_dynamics_with_tree(target: &mut Particle, previous_target_accel
     }
 }
 
-fn calculate_dynamics_due_to_one_body<T: GravitationalSource>(target: &mut Particle, previous_target_accel: &[f64; 3], source: &T) {
+fn calculate_dynamics_due_to_one_body<T: GravitationalSource + std::fmt::Debug>(target: &mut Particle, previous_target_accel: &[f64; 3], source: &T) {
     let displacement: [f64; 3] = subtract(&source.get_position(), &target.position);
     let displacement_mag: f64 = magnitude(&displacement);
     let inv_r3 = displacement_mag.powi(-3);
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_tree() {
-        let mut particles = plummer_init_conds(1.0, 1e8, 100, String::from("tests"));
+        let mut particles = plummer_init_conds(1.0, 1e8, 1000, String::from("tests"));
 
         recalculate_dynamics_due_to_gravity_directly(&mut particles);
         let start = Instant::now();

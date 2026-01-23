@@ -7,9 +7,7 @@ pub trait GravitationalSource {
     fn get_acceleration(&self) -> [f64; 3];
 }
 
-#[derive(PartialEq)]
-#[derive(Clone)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Particle {
     pub mass: f64,
     pub position: [f64; 3],
@@ -17,6 +15,12 @@ pub struct Particle {
     pub acceleration: [f64;3],
     pub jerk: [f64;3],
     pub snap: [f64;3],
+}
+
+impl PartialEq for Particle {
+    fn eq(&self, other: &Self) -> bool {
+        self.position == other.position
+    }
 }
 
 impl GravitationalSource for Particle {

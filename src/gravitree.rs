@@ -1,6 +1,4 @@
-use std::arch::x86_64::_mm_div_round_ss;
-
-use crate::particle::{self, GravitationalSource, Particle};
+use crate::particle::{GravitationalSource, Particle};
 use crate::vectors::*;
 use crate::forces::{GG, KM_IN_KPC};
 use rayon::prelude::*;
@@ -21,6 +19,7 @@ impl AccuracyCriterion {
     }
 }
 
+#[derive(Debug)]
 #[derive(Clone)]
 pub enum Node {
     Branch {
@@ -73,13 +72,6 @@ impl Node {
             velocity_cm: [0.0; 3],
             acceleration_cm: [0.0; 3],
             children,
-        }
-    }
-
-    fn set_children(&mut self, new_children: [Box<Node>; 2]) {
-        match self {
-            Node::Branch { children, .. } => *children = new_children,
-            Node::Leaf { .. } => panic!("Leaves cannot have children!")
         }
     }
 
@@ -202,39 +194,50 @@ impl Node {
 //https://developer.nvidia.com/blog/thinking-parallel-part-iii-tree-construction-gpu/
 pub fn build_gravitree(particles: Vec<Particle>) -> Node {
     let (mut leaves, codes) = generate_leaves(particles);
-    let n = leaves.len();
-    for i in 0..codes.len() {
-        println!("{:#b}", codes[i])
-    }
 
-    let branch_structure: Vec<(usize, usize, usize, usize)> = (0..n - 1)
+    let branch_structure: Vec<(usize, usize, usize)> = (0..leaves.len() - 1)
         .into_par_iter().map(|idx| {
             let (first, last) = determine_range(&codes, idx);
             let split = find_split(&codes, (first, last));
-            (idx, first, last, split)
+
+            (first, last, split)
         }).collect();
-
-    let mut branches: Vec<Option<Node>> = vec![None; n - 1];
-    for &(idx, first, last, split) in branch_structure.iter().rev() {
-        
-        let left_child = match split == first {
-            true => leaves[split].take().unwrap(),
-            false => branches[split].take().unwrap()
-        };
-
-        let right_child = match split + 1 == last {
-            true => leaves[split + 1].take().unwrap(),
-            false => branches[split + 1].take().unwrap()
-        };
-
-        branches[idx] = Some(Node::new_branch([Box::new(left_child), Box::new(right_child)]));
-    }
-
-    let mut root = branches[0].take().unwrap();
+    
+    let mut root = assemble_tree(leaves.len(), &mut leaves, &branch_structure);
 
     root.compute_physical_parameters();
 
     root
+}
+
+fn assemble_tree(
+    idx: usize,
+    leaves: &mut Vec<Option<Node>>,
+    branch_structure: &Vec<(usize, usize, usize)>
+) -> Node {
+    if idx < leaves.len() {
+        //this is a leaf, just return itself
+        return leaves[idx].take().unwrap()
+    }
+
+    // This is an internal Node, it will need it's children before it returns itself
+    let node_idx = idx - leaves.len();
+    let (first, last, split) = branch_structure[node_idx];
+
+    let left_child_idx = match split == first {
+        true => split,
+        false => split + leaves.len()
+    };
+
+    let right_child_idx = match split + 1 == last {
+        true => split + 1,
+        false => split + 1 + leaves.len()
+    };
+
+    let left_child = assemble_tree(left_child_idx, leaves, branch_structure);
+    let right_child = assemble_tree(right_child_idx, leaves, branch_structure);
+
+    Node::new_branch([Box::new(left_child), Box::new(right_child)])
 }
 
 //https://developer.nvidia.com/blog/parallelforall/wp-content/uploads/2012/11/karras2012hpg_paper.pdf
@@ -249,6 +252,7 @@ fn determine_range(codes: &Vec<u32>, idx: usize) -> (usize, usize) {
     let min_prefix = (codes[idx] ^ codes[(idx as isize - d) as usize]).leading_zeros();
 
     let mut high = match d {
+        // Note high should be one larger than the largest possible index such that low can reach the largest possible index if needed
         1 => codes.len() - idx,
         -1 => idx + 1,
         _ => panic!("Direction indicator not 1 or -1. Something wrong with milton codes")
