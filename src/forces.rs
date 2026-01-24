@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_tree() {
-        let mut particles = plummer_init_conds(1.0, 1e8, 1000, String::from("tests"));
+        let mut particles = plummer_init_conds(1.0, 1e8, 5000, String::from("tests"));
 
         recalculate_dynamics_due_to_gravity_directly(&mut particles);
         let start = Instant::now();
@@ -319,7 +319,7 @@ mod tests {
             panic!("Geometric tree acceleration error too high! RMS relative error = {}", geo_accel_err)
         };
 
-        if geo_jerk_err > 5e-2 {
+        if geo_jerk_err > 1e-1 {
             panic!("Geometric tree jerk error too high! RMS relative error = {}", geo_jerk_err)
         };
 

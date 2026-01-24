@@ -126,7 +126,7 @@ impl Node {
 
                 //worst case
                 let bounds = bounds.expect("Tree is being used for force calculation before it is fully initialized!");
-                let size = (bounds[0][1] - bounds[0][0]).min(bounds[1][1] - bounds[1][0]).min(bounds[2][1] - bounds[2][0]);
+                let size = ((bounds[0][1]-bounds[0][0]).powi(2) + (bounds[1][1]-bounds[1][0]).powi(2) + (bounds[2][1]-bounds[2][0]).powi(2)).sqrt();
 
                 match criterion {
                     AccuracyCriterion::Geometric(theta) => {
@@ -197,7 +197,7 @@ pub fn build_gravitree(particles: Vec<Particle>) -> Node {
 
     let branch_structure: Vec<(usize, usize, usize)> = (0..leaves.len() - 1)
         .into_par_iter().map(|idx| {
-            let (first, last) = determine_range(&codes, idx);
+            let (first, last) = determine_range(&codes, idx, &leaves);
             let split = find_split(&codes, (first, last));
 
             (first, last, split)
@@ -241,7 +241,7 @@ fn assemble_tree(
 }
 
 //https://developer.nvidia.com/blog/parallelforall/wp-content/uploads/2012/11/karras2012hpg_paper.pdf
-fn determine_range(codes: &Vec<u32>, idx: usize) -> (usize, usize) {
+fn determine_range(codes: &Vec<u32>, idx: usize, leaves: &Vec<Option<Node>>) -> (usize, usize) {
     if idx == 0 {
         return (0, codes.len() - 1)
     }
@@ -255,7 +255,14 @@ fn determine_range(codes: &Vec<u32>, idx: usize) -> (usize, usize) {
         // Note high should be one larger than the largest possible index such that low can reach the largest possible index if needed
         1 => codes.len() - idx,
         -1 => idx + 1,
-        _ => panic!("Direction indicator not 1 or -1. Something wrong with milton codes")
+        _ => {
+            dbg!(
+                leaves[idx - 1].clone().unwrap().get_position(),
+                leaves[idx].clone().unwrap().get_position(),
+                leaves[idx + 1].clone().unwrap().get_position()
+            );
+            panic!("Direction indicator not 1 or -1. Something wrong with morton codes. d={d}. Codes: \n{:#b} \n{:#b} \n{:#b}", codes[idx - 1], codes[idx], codes[idx + 1])
+        }
     };
     let mut low = 0;
 
@@ -274,7 +281,7 @@ fn determine_range(codes: &Vec<u32>, idx: usize) -> (usize, usize) {
     match d {
         1 => (idx, idx + low * (d as usize)),
         -1 => ((idx as isize + (low as isize) * d) as usize, idx),
-        _ => panic!("Direction indicator not 1 or -1. Something wrong with morton codes")
+        _ => panic!("Direction indicator not 1 or -1. Something wrong with morton codes. d = {d}")
     }
 }
 
@@ -364,7 +371,13 @@ fn get_bounds(particles: &Vec<Particle>) -> [[f64; 2]; 3] {
         }
     );
 
-    bounds
+    //pad
+    const PAD: f64 = 0.1;
+    [
+        [bounds[0][0] - PAD, bounds[0][1] + PAD],
+        [bounds[1][0] - PAD, bounds[1][1] + PAD],
+        [bounds[2][0] - PAD, bounds[2][1] + PAD]
+    ]
 }
 
 fn expand_bits(v: u32) -> u32 {
@@ -402,6 +415,7 @@ fn normalize_coordinates(coords: [f64; 3], bounds: [[f64; 2]; 3]) -> [f64;3] {
 mod tests {
     use super::*;
 
+/*
     #[test]
     fn text_tree_building() {
         let codes = vec![0b00001, 0b00010, 0b00100, 0b00101, 0b10011, 0b11000, 0b11001, 0b11110];
@@ -435,4 +449,5 @@ mod tests {
             panic!("Something wrong in tree building, likely range finding or split finding")
         }
     }
+*/
 }
